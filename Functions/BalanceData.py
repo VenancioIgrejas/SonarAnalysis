@@ -4,6 +4,7 @@ from sklearn.cluster import KMeans
 class DataCreator(object):
     def __init__(self):
         self.name = 'DataCreator Class'
+
         self.model = None
         self.events_per_centroid = None
         

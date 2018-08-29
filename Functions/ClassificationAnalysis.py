@@ -10,10 +10,10 @@ from sklearn import cross_validation
 from sklearn.externals import joblib
 from sklearn import preprocessing
 from sklearn.metrics import confusion_matrix
-<<<<<<< HEAD
-
-=======
->>>>>>> c48fd559f7c9b54f6c561e89fe3cbca211f40042
+#<<<<<<< HEAD
+#
+#=======
+#>>>>>>> c48fd559f7c9b54f6c561e89fe3cbca211f40042'
 
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Activation
@@ -353,7 +353,8 @@ class NeuralClassification(ClassificationBaseClass):
     
         fig, ax = plt.subplots(figsize=(10,10),nrows=trgt.shape[1], ncols=output.shape[1])
         
-        m_colors = ['b', 'r', 'g', 'y']
+        m_colors =[(random.uniform(0, 1),random.uniform(0, 1),random.uniform(0, 1)) for i in
+                   range(trgt[-1]+1)] #['b', 'r', 'g', 'y']
         m_bins = np.linspace(-0.5, 1.5, 50)
         for i_target in range(trgt.shape[1]):
             for i_output in range(output.shape[1]):
@@ -402,10 +403,10 @@ class NeuralClassification(ClassificationBaseClass):
                     color='k',alpha=0.7,linewidth=2.5)
         ax.set_ylabel('Acc',fontweight='bold',fontsize=15)
         ax.set_xlabel('Neurons',fontweight='bold',fontsize=15)
-<<<<<<< HEAD
-        ax.grid()
-        ax.xaxis.set_ticks(xtick)
-=======
+#<<<<<<< HEAD
+#        ax.grid()
+#        ax.xaxis.set_ticks(xtick)
+#=======
         return None
     def analysis_train_plot(self,data,trgt,trn_info=None, n_neurons=1,fold=0):
         #print 'NeuralClassication analysis train plot function'
@@ -433,7 +434,7 @@ class NeuralClassification(ClassificationBaseClass):
 
         ax.set_ylabel('MSE',fontweight='bold',fontsize=15)
         ax.set_xlabel('Epochs',fontweight='bold',fontsize=15)
->>>>>>> c48fd559f7c9b54f6c561e89fe3cbca211f40042
+#>>>>>>> c48fd559f7c9b54f6c561e89fe3cbca211f40042
         
         ax.grid()
         plt.legend()
@@ -509,7 +510,7 @@ class NeuralClassification(ClassificationBaseClass):
         else:
             [output] = joblib.load(file_name)
 
-<<<<<<< HEAD
+#<<<<<<< HEAD
     def analysis_train_plot(self,data,trgt,trn_info=None, n_neurons=1,fold=0):
         print 'NeuralClassication analysis train plot function'
         # checar se a analise ja foi feita
@@ -556,7 +557,7 @@ class NeuralClassification(ClassificationBaseClass):
         else:
             [output] = joblib.load(file_name)
 
-        fig, ax = plt.subplots(figsize=(10,10),nrows=1, ncols=1)
+        fig, ax = plt.subplots(figsize=(60,60),nrows=1, ncols=1)
 
 
         train_id, test_id = self.trn_info.CVO[fold]
@@ -594,7 +595,7 @@ class NeuralClassification(ClassificationBaseClass):
 
 
 
-=======
+#=======
 	return K.mean(K.equal(trgt, K.lesser(output, threshold)))
 	
->>>>>>> c48fd559f7c9b54f6c561e89fe3cbca211f40042
+#>>>>>>> c48fd559f7c9b54f6c561e89fe3cbca211f40042

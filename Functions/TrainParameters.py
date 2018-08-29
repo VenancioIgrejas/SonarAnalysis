@@ -6,7 +6,7 @@ import os
 import platform
 import numpy as np
 from sklearn.externals import joblib
-from sklearn import model_selection
+from sklearn import cross_validation
 from sklearn.model_selection import StratifiedKFold
 
 class TrnParams(object):
@@ -16,8 +16,7 @@ class TrnParams(object):
     def __init__(self, analysis="None"):
         self.analysis = analysis
         self.params = None
-        self.resultsPath = None
-        
+
     def save(self, name="None"):
         joblib.dump([self.params],name,compress=9)
 
@@ -27,9 +26,7 @@ class TrnParams(object):
     def printParams(self):
         for iparameter in self.params:
             print iparameter + ': ' + str(self.params[iparameter])
-    
-    def getResultsPath(self):
-        self.resultsPath = ''
+
 
 # classification
 
@@ -40,9 +37,9 @@ def ClassificationFolds(folder, n_folds=2, trgt=None, dev=False, verbose=False):
         return -1
 
     if not dev:
-        file_name = os.path.join(folder, "%i_folds_cross_validation.jbl"%(n_folds))
+        file_name = '%s/%i_folds_cross_validation.jbl'%(folder,n_folds)
     else:
-        file_name = os.path.join(folder, "%i_folds_cross_validation_dev.jbl"%(n_folds))
+        file_name = '%s/%i_folds_cross_validation_dev.jbl'%(folder,n_folds)
 
     if not os.path.exists(file_name):
         if verbose:
@@ -52,7 +49,7 @@ def ClassificationFolds(folder, n_folds=2, trgt=None, dev=False, verbose=False):
             print 'Invalid trgt'
             return -1
 
-        CVO = model_selection.StratifiedKFold(trgt, n_folds)
+        CVO = cross_validation.StratifiedKFold(trgt,n_folds)
         CVO = list(CVO)
         joblib.dump([CVO],file_name,compress=9)
     else:
@@ -122,7 +119,104 @@ class NeuralClassificationTrnParams(TrnParams):
         param_str = param_str + '_metric_' + self.params['loss'] + '_loss'
         return param_str
 
+class NeuralNetworkTrnParams(TrnParams): 
+    
+    def __init__(self,
+                 n_inits=2,
+                 folds=2,
+                 neuron = 10,
+                 norm='mapstd',
+                 verbose=False,
+                 train_verbose=False,
+                 n_epochs=10,
+                 learning_rate=0.001,
+                 beta_1 = 0.9,
+                 beta_2 = 0.999,
+                 epsilon = 1e-08,
+                 learning_decay=1e-6,
+                 momentum=0.3,
+                 nesterov=True,
+                 patience=5,
+                 batch_size=4,
+                 hidden_activation='tanh',
+                 output_activation='tanh',
+                 classifier_output_activation = 'softmax',
+                 metrics=['accuracy'],
+                 pcd=None,
+                 class_weight_flag=False,
+                 loss='mean_squared_error',
+                 optmizerAlgorithm='sgd'):
+        
+        self.params = {}
+        
+        
+        self.params['n_inits'] = n_inits
+        self.params['folds'] = folds
+        self.params['neuron'] = neuron
+        self.params['norm'] = norm
+        self.params['verbose'] = verbose
+        self.params['train_verbose'] = train_verbose
 
+        # train params
+        self.params['n_epochs'] = n_epochs
+        self.params['learning_rate'] = learning_rate
+        self.params['beta_1'] = beta_1
+        self.params['beta_2'] = beta_2
+        self.params['epsilon'] = epsilon
+        self.params['learning_decay'] = learning_decay
+        self.params['momentum'] = momentum
+        self.params['nesterov'] = nesterov
+        self.params['patience'] = patience
+        self.params['batch_size'] = batch_size
+        self.params['hidden_activation'] = hidden_activation
+        self.params['output_activation'] = output_activation
+        self.params['metrics'] = metrics
+        self.params['loss'] = loss
+        self.params['optmizerAlgorithm'] = optmizerAlgorithm
+        self.params['class_weight_flag'] = class_weight_flag
+        if pcd=='None':
+            self.params['pcd'] = False
+        else:
+            self.params['pcd'] = pcd
+    
+    def get_params_str(self):
+        param_str = ('%i_inits_%s_norm_%i_epochs_%i_batch_size_%s_hidden_activation_%s_output_activation'%
+                (self.params['n_inits'],self.params['norm'],self.params['n_epochs'],self.params['batch_size'],
+                      self.params['hidden_activation'],self.params['output_activation']))
+        for imetric in self.params['metrics']:
+            param_str = param_str + '_' + imetric
+      
+        param_str = param_str + '_metric_' + self.params['loss'] + '_loss'
+        return param_str
+    
+    def getModelPath(self):
+        
+        self.path = "NeuralNetwork,{0}_optmizer,{1}_hidden_activation,{2}_output_activation,{3}_pcd,{4}_balanced,{5}_init_{6}_folds_{7}_norm_{8}_epochs_{9}_batch_size_{10}_neuron".format(
+            self.params['optmizerAlgorithm'],
+            self.params['hidden_activation'],
+            self.params['output_activation'],
+            self.params['pcd'],
+            self.params['class_weight_flag'],
+            self.params['n_inits'],
+            self.params['folds'],
+            self.params['norm'],
+            self.params['n_epochs'],
+            self.params['batch_size'],
+            self.params['neuron']
+         )
+        
+        for imetric in self.params['metrics']:
+             self.path = self.path + '_' + 'TesteSP'#imetric
+        self.path = self.path + '_metric_' + self.params['loss'] + '_loss'
+        
+        if platform.system() == "Linux":
+            delimiter = '/'
+        
+        self.path = self.path.replace(',',delimiter)
+        
+        return self.path
+            
+        
 # novelty detection
 
 def NoveltyDetectionFolds(folder, n_folds=2, trgt=None, dev=False, verbose=False):
@@ -131,9 +225,9 @@ def NoveltyDetectionFolds(folder, n_folds=2, trgt=None, dev=False, verbose=False
         return -1
 
     if not dev:
-        file_name = os.path.join(folder, "%i_folds_cross_validation.jbl"%(n_folds))
+        file_name = '%s/%i_folds_cross_validation.jbl'%(folder,n_folds)
     else:
-        file_name = os.path.join(folder, "%i_folds_cross_validation_dev.jbl"%(n_folds))
+        file_name = '%s/%i_folds_cross_validation_dev.jbl'%(folder,n_folds)
 
     if not os.path.exists(file_name):
         if verbose:
@@ -190,94 +284,7 @@ class NNNoveltyDetectionTrnParams(NeuralClassificationTrnParams):
         NN Novelty Detection TrnParams
     """
 
-
-class SAENoveltyDetectionTrnParams(TrnParams):
+class SAENoveltyDetectionTrnParams(NeuralClassificationTrnParams):
     """
-        Neural Classification TrnParams
+        SAE Novelty Detection TrnParams
     """
-
-    def __init__(self,
-                 n_inits=2,
-                 folds=10,
-                 norm='mapstd',
-                 verbose=False,
-                 train_verbose=False,
-                 n_epochs=10,
-                 learning_rate=0.001,
-                 beta_1 = 0.9,
-                 beta_2 = 0.999,
-                 epsilon = 1e-08,
-                 learning_decay=1e-6,
-                 momentum=0.3,
-                 nesterov=True,
-                 patience=5,
-                 batch_size=4,
-                 hidden_activation='tanh',
-                 output_activation='tanh',
-                 classifier_output_activation = 'softmax',
-                 metrics=['accuracy'],
-                 loss='mean_squared_error',
-                 optmizerAlgorithm='SGD'
-                ):
-        self.params = {}
-
-        self.params['n_inits'] = n_inits
-        self.params['folds'] = folds
-        self.params['norm'] = norm
-        self.params['verbose'] = verbose
-        self.params['train_verbose'] = train_verbose
-
-        # train params
-        self.params['n_epochs'] = n_epochs
-        self.params['learning_rate'] = learning_rate
-        self.params['beta_1'] = beta_1
-        self.params['beta_2'] = beta_2
-        self.params['epsilon'] = epsilon
-        self.params['learning_decay'] = learning_decay
-        self.params['momentum'] = momentum
-        self.params['nesterov'] = nesterov
-        self.params['patience'] = patience
-        self.params['batch_size'] = batch_size
-        self.params['hidden_activation'] = hidden_activation
-        self.params['output_activation'] = output_activation
-        self.params['classifier_output_actvation'] = classifier_output_activation
-        self.params['metrics'] = metrics
-        self.params['loss'] = loss
-        self.params['optmizerAlgorithm'] = optmizerAlgorithm
-
-    def get_params_str(self):
-        param_str = ('%i_inits_%s_norm_%i_epochs_%i_batch_size_%s_hidden_activation_%s_output_activation'%
-                     (self.params['n_inits'],self.params['norm'],self.params['n_epochs'],self.params['batch_size'],
-                      self.params['hidden_activation'],self.params['output_activation']))
-        for imetric in self.params['metrics']:
-            param_str = param_str + '_' + imetric
-      
-        param_str = param_str + '_metric_' + self.params['loss'] + '_loss'
-        return param_str
-    
-    def getModelPath(self):
-        
-        self.path = "StackedAutoEncoder,{0}_optmizer,{1}_sae_hidden_activation,{2}_sae_output_actvation,{3}_classifier_output_activation,{4}_init_{5}_folds_{6}_norm_{7}_epochs_{8}_batch_size".format(
-            self.params['optmizerAlgorithm'],
-            self.params['hidden_activation'],
-            self.params['output_activation'],
-            self.params['classifier_output_actvation'],
-            self.params['n_inits'],
-            self.params['folds'],
-            self.params['norm'],
-            self.params['n_epochs'],
-            self.params['batch_size']
-        )
-        
-        for imetric in self.params['metrics']:
-            self.path = self.path + '_' + imetric
-        self.path = self.path + '_metric_' + self.params['loss'] + '_loss'
-        
-        if platform.system() == "Linux":
-            delimiter = '/'
-        else:
-            delimiter = '\\'
-            
-        self.path = self.path.replace(',', delimiter)
-        
-        return self.path
