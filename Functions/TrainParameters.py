@@ -17,7 +17,7 @@ class TrnParams(object):
         self.analysis = analysis
         self.params = None
         self.resultsPath = None
-        
+
     def save(self, name="None"):
         joblib.dump([self.params],name,compress=9)
 
@@ -27,7 +27,7 @@ class TrnParams(object):
     def printParams(self):
         for iparameter in self.params:
             print iparameter + ': ' + str(self.params[iparameter])
-    
+
     def getResultsPath(self):
         self.resultsPath = ''
 
@@ -118,10 +118,68 @@ class NeuralClassificationTrnParams(TrnParams):
                       self.params['hidden_activation'],self.params['output_activation']))
         for imetric in self.params['metrics']:
             param_str = param_str + '_' + imetric
-      
+
         param_str = param_str + '_metric_' + self.params['loss'] + '_loss'
         return param_str
 
+class SpecialistClassificationTrnParams(TrnParams):
+    """
+        Specialist NN Classification TrnParams
+    """
+
+    def __init__(self,
+                 n_inits=2,
+                 norm='mapstd',
+                 verbose=False,
+                 train_verbose=False,
+                 n_epochs=10,
+                 learning_rate=0.001,
+                 beta_1 = 0.9,
+                 beta_2 = 0.999,
+                 epsilon = 1e-08,
+                 learning_decay=1e-6,
+                 momentum=0.3,
+                 nesterov=True,
+                 patience=5,
+                 batch_size=4,
+                 hidden_activation='tanh',
+                 output_activation='tanh',
+                 metrics=['accuracy'],
+                 loss='mean_squared_error',
+                 optmizerAlgorithm='SGD'
+                ):
+
+        self.__dic__['n_inits'] = n_inits
+        self.__dic__['norm'] = norm
+        self.__dic__['verbose'] = verbose
+        self.__dic__['train_verbose'] = train_verbose
+
+        # tra__dic__ams
+        self.__dic__['n_epochs'] = n_epochs
+        self.__dic__['learning_rate'] = learning_rate
+        self.__dic__['beta_1'] = beta_1
+        self.__dic__['beta_2'] = beta_2
+        self.__dic__['epsilon'] = epsilon
+        self.__dic__['learning_decay'] = learning_decay
+        self.__dic__['momentum'] = momentum
+        self.__dic__['nesterov'] = nesterov
+        self.__dic__['patience'] = patience
+        self.__dic__['batch_size'] = batch_size
+        self.__dic__['hidden_activation'] = hidden_activation
+        self.__dic__['output_activation'] = output_activation
+        self.__dic__['metrics'] = metrics
+        self.__dic__['loss'] = loss
+        self.__dic__['optmizerAlgorithm'] = optmizerAlgorithm
+
+    def get_params_str(self):
+        param_str = ('%i_inits_%s_norm_%i_epochs_%i_batch_size_%s_hidden_activation_%s_output_activation'%
+                     (self.n_inits,self.norm,self.n_epochs,self.batch_size,
+                      self.hidden_activation,self.output_activation))
+        for imetric in self.metrics:
+            param_str = param_str + '_' + imetric
+
+        param_str = param_str + '_metric_' + self.loss + '_loss'
+        return param_str
 
 # novelty detection
 
@@ -251,12 +309,12 @@ class SAENoveltyDetectionTrnParams(TrnParams):
                       self.params['hidden_activation'],self.params['output_activation']))
         for imetric in self.params['metrics']:
             param_str = param_str + '_' + imetric
-      
+
         param_str = param_str + '_metric_' + self.params['loss'] + '_loss'
         return param_str
-    
+
     def getModelPath(self):
-        
+
         self.path = "StackedAutoEncoder,{0}_optmizer,{1}_sae_hidden_activation,{2}_sae_output_actvation,{3}_classifier_output_activation,{4}_init_{5}_folds_{6}_norm_{7}_epochs_{8}_batch_size".format(
             self.params['optmizerAlgorithm'],
             self.params['hidden_activation'],
@@ -268,16 +326,16 @@ class SAENoveltyDetectionTrnParams(TrnParams):
             self.params['n_epochs'],
             self.params['batch_size']
         )
-        
+
         for imetric in self.params['metrics']:
             self.path = self.path + '_' + imetric
         self.path = self.path + '_metric_' + self.params['loss'] + '_loss'
-        
+
         if platform.system() == "Linux":
             delimiter = '/'
         else:
             delimiter = '\\'
-            
+
         self.path = self.path.replace(',', delimiter)
-        
+
         return self.path

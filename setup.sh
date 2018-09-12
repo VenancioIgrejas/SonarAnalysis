@@ -1,4 +1,4 @@
-#!/bin/bash 
+#!/bin/bash
 
 # SonarAnalysis Setup Script
 #
@@ -29,7 +29,14 @@ elif [[ "$USER" == "vinicius.mello" ]]; then
         export SONAR_WORKSPACE=/home/vinicius.mello/Workspace/SonarAnalysis
         export INPUTDATAPATH=/home/vinicius.mello/Public/Marinha/Data
     fi
-fi    
+elif [[ "$USER" == "venancio" ]]; then
+    # vinicius.mello user
+    if [ "$OSTYPE" == "linux-gnu" ] || ["$OSTYPE" == "GNU/Linux"]; then
+        # Ubuntu
+        export SONAR_WORKSPACE=/home/venancio/Workspace/SonarAnalysis
+        export INPUTDATAPATH=/home/venancio/Public/Marinha/Data
+    fi
+fi
 export OUTPUTDATAPATH=$SONAR_WORKSPACE/Results
 export PYTHONPATH=$SONAR_WORKSPACE:$PYTHONPATH
 
