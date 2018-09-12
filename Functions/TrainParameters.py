@@ -129,6 +129,8 @@ class SpecialistClassificationTrnParams(TrnParams):
 
     def __init__(self,
                  n_inits=2,
+                 n_folds=2,
+                 n_neurons=5,
                  norm='mapstd',
                  verbose=False,
                  train_verbose=False,
@@ -150,6 +152,8 @@ class SpecialistClassificationTrnParams(TrnParams):
                 ):
 
         self.__dic__['n_inits'] = n_inits
+        self.__dic__['n_folds'] = n_folds
+        self.__dic__['n_neurons'] = n_neurons
         self.__dic__['norm'] = norm
         self.__dic__['verbose'] = verbose
         self.__dic__['train_verbose'] = train_verbose
@@ -172,8 +176,8 @@ class SpecialistClassificationTrnParams(TrnParams):
         self.__dic__['optmizerAlgorithm'] = optmizerAlgorithm
 
     def get_params_str(self):
-        param_str = ('%i_inits_%s_norm_%i_epochs_%i_batch_size_%s_hidden_activation_%s_output_activation'%
-                     (self.n_inits,self.norm,self.n_epochs,self.batch_size,
+        param_str = ('%i_inits_%i_folds__%i_neurons_%s_norm_%i_epochs_%i_batch_size_%s_hidden_activation_%s_output_activation'%
+                     (self.n_inits,self.folds,self.n_neurons,self.norm,self.n_epochs,self.batch_size,
                       self.hidden_activation,self.output_activation))
         for imetric in self.metrics:
             param_str = param_str + '_' + imetric
