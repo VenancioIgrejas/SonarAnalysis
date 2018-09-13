@@ -33,7 +33,7 @@ elif [[ "$USER" == "venancio" ]]; then
     # vinicius.mello user
     if [ "$OSTYPE" == "linux-gnu" ] || ["$OSTYPE" == "GNU/Linux"]; then
         # Ubuntu
-        export SONAR_WORKSPACE=/home/venancio/WorksPlace/SonarAnalysis
+        export SONAR_WORKSPACE=/home/venancio/WorkPlace/SonarAnalysis
         export INPUTDATAPATH=/home/venancio/Public/Marinha/Data
     fi
 fi
