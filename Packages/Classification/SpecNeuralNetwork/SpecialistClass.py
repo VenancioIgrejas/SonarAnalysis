@@ -1,6 +1,6 @@
 from OneSpecialistClass import OneSpecialistClass as SC
 
-class SpecialistClass():
+class SpecialistClass(object):
     """docstring for SpecialistClass."""
     def __init__(self,resultPath,trnParams,num_specialist):
         #super(SpecialistClass, self).__init__()

@@ -1,44 +1,46 @@
 import os
-import SpecPath
+from SpecPath import SpecPath
 import pandas as pd
 
 import numpy as np
+
+from Functions import TrainParameters
 
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Activation
 from keras.optimizers import SGD
 import keras.callbacks as callbacks
 from keras.utils import np_utils
-from keras.layers import Merge
 
 from keras import backend as K
 
 class OneSpecialistClass(SpecPath):
     """docstring for SpecialistTrain."""
     def __init__(self, pathResult,trnParams,spec_num):
-        super(SpecialistTrain, self).__init__(trnParams,spec_num)
+        super(OneSpecialistClass, self).__init__(trnParams,spec_num)
+        self.spec_num = spec_num
         self.trnparams = trnParams
         self.resultPath = pathResult
         self.result_path_fold = {}
         self.result_spec_model = os.path.join(pathResult,self.spec_model)
         self.result_spec_figures =  os.path.join(pathResult,self.spec_model)
 
-        for ifold in range(trnParams.n_folds):
+        for ifold in range(trnParams.folds):
             self.result_path_fold[ifold] = os.path.join(pathResult,self.path_fold[ifold])
-            if os.path.exists(self.result_path_fold[ifold]):
-                os.mkdir(self.result_path_fold[ifold])
+            if not os.path.exists(self.result_path_fold[ifold]):
+                os.makedirs(self.result_path_fold[ifold])
 
         if not os.path.exists(self.result_spec_model):
-            os.mkdir(self.result_spec_model)
+            os.makedirs(self.result_spec_model)
 
         if not os.path.exists(self.result_spec_figures):
-            os.mkdir(self.result_spec_figures)
+            os.makedirs(self.result_spec_figures)
 
 
 
     def set_cross_validation(self,all_trgt):
         return TrainParameters.ClassificationFolds(folder=self.result_spec_model,
-                                                    n_folds=self.trnparams.n_folds,
+                                                    n_folds=self.trnparams.folds,
                                                     trgt=all_trgt,
                                                     verbose=True)
 
@@ -66,6 +68,7 @@ class OneSpecialistClass(SpecPath):
 
         if (self.trnparams.output_activation=='tanh'):
             trgt_sparse = 2*np_utils.to_categorical(trgt.astype(int)) -1
+            trgt_sparse = trgt_sparse[self.spec_num]
         else:
             trgt_sparse = np_utils.to_categorical(trgt.astype(int))
             #trgt_sparse = np_utils.to_categorical(trgt.astype(int))
