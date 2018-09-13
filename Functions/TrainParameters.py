@@ -151,32 +151,32 @@ class SpecialistClassificationTrnParams(TrnParams):
                  optmizerAlgorithm='SGD'
                 ):
 
-        self.__dic__['n_inits'] = n_inits
-        self.__dic__['n_folds'] = n_folds
-        self.__dic__['n_neurons'] = n_neurons
-        self.__dic__['norm'] = norm
-        self.__dic__['verbose'] = verbose
-        self.__dic__['train_verbose'] = train_verbose
+        self.__dict__['n_inits'] = n_inits
+        self.__dict__['folds'] = n_folds
+        self.__dict__['n_neurons'] = n_neurons
+        self.__dict__['norm'] = norm
+        self.__dict__['verbose'] = verbose
+        self.__dict__['train_verbose'] = train_verbose
 
-        # tra__dic__ams
-        self.__dic__['n_epochs'] = n_epochs
-        self.__dic__['learning_rate'] = learning_rate
-        self.__dic__['beta_1'] = beta_1
-        self.__dic__['beta_2'] = beta_2
-        self.__dic__['epsilon'] = epsilon
-        self.__dic__['learning_decay'] = learning_decay
-        self.__dic__['momentum'] = momentum
-        self.__dic__['nesterov'] = nesterov
-        self.__dic__['patience'] = patience
-        self.__dic__['batch_size'] = batch_size
-        self.__dic__['hidden_activation'] = hidden_activation
-        self.__dic__['output_activation'] = output_activation
-        self.__dic__['metrics'] = metrics
-        self.__dic__['loss'] = loss
-        self.__dic__['optmizerAlgorithm'] = optmizerAlgorithm
+        # tra__dict__ams
+        self.__dict__['n_epochs'] = n_epochs
+        self.__dict__['learning_rate'] = learning_rate
+        self.__dict__['beta_1'] = beta_1
+        self.__dict__['beta_2'] = beta_2
+        self.__dict__['epsilon'] = epsilon
+        self.__dict__['learning_decay'] = learning_decay
+        self.__dict__['momentum'] = momentum
+        self.__dict__['nesterov'] = nesterov
+        self.__dict__['patience'] = patience
+        self.__dict__['batch_size'] = batch_size
+        self.__dict__['hidden_activation'] = hidden_activation
+        self.__dict__['output_activation'] = output_activation
+        self.__dict__['metrics'] = metrics
+        self.__dict__['loss'] = loss
+        self.__dict__['optmizerAlgorithm'] = optmizerAlgorithm
 
     def get_params_str(self):
-        param_str = ('%i_inits_%i_folds__%i_neurons_%s_norm_%i_epochs_%i_batch_size_%s_hidden_activation_%s_output_activation'%
+        param_str = ('%i_inits_%i_folds_%i_neurons_%s_norm_%i_epochs_%i_batch_size_%s_hidden_activation_%s_output_activation'%
                      (self.n_inits,self.folds,self.n_neurons,self.norm,self.n_epochs,self.batch_size,
                       self.hidden_activation,self.output_activation))
         for imetric in self.metrics:
