@@ -1,5 +1,6 @@
 import os
 import SpecPath
+import pandas as pd
 
 import numpy as np
 
@@ -72,6 +73,21 @@ class OneSpecialistClass(SpecPath):
         self.trgt_sparse = trgt_sparse
         return [data_proc,trgt_sparse,prepro_file]
 
+    def output(self,data,trgt,fold):
+        output_path = os.path.join(self.result_path_fold,'output.csv')
+
+        if not os.path.exists(output_path):
+            train_id , test_id = self.set_cross_validation(trgt)[fold]
+            data_proj,trgt_sparse,_ = self.preprocess(self,data,trgt,fold)
+            model = train(self,data,trgt,fold)
+            output = model.predict(data_proj)
+            df = pd.DataFrame(output)
+            df.to_csv(output_path, index=False)
+        else:
+            output = pd.read_csv(output_path).values[0]
+
+        return output
+
     def train_n_folds(self,data,trgt):
         model = {}
         for ifold in range(self.params.folds):
@@ -80,11 +96,15 @@ class OneSpecialistClass(SpecPath):
 
     def train(self,data,trgt,fold):
         train_id , test_id = self.set_cross_validation(trgt)[fold]
+        if self.params.weight:
+            weight  = dict(enumerate(class_weight.compute_class_weight('balanced',np.unique(trgt[train_id]),trgt[train_id])))
+        else:
+            weight = None
         data_proj,trgt_sparse,_ = self.preprocess(self,data,trgt,fold)
-        model = self.fit(data_proj,trgt_sparse,train_id,test_id,fold)
+        model = self.fit(data_proj,trgt_sparse,train_id,test_id,fold,weight)
         return model
 
-    def fit(self,data,target,train_ids,test_ids,num_fold):
+    def fit(self,data,target,train_ids,test_ids,num_fold,weight):
 
         best_model_path = os.path.join(self.result_path_fold,'best_model.h5')
         best_train_path = os.path.join(self.result_path_fold,'best_train.csv')
@@ -136,6 +156,7 @@ class OneSpecialistClass(SpecPath):
                                                 nb_epoch=trn_params.n_epochs,
                                                 batch_size=trn_params.batch_size,
                                                 callbacks=[earlyStopping],
+                                                class_weight=weight,
                                                 verbose=trn_params.train_verbose,
                                                 validation_data=(data[test_ids],
                                                                 target[test_ids]),
