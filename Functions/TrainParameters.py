@@ -179,8 +179,8 @@ class SpecialistClassificationTrnParams(TrnParams):
         self.__dict__['optmizerAlgorithm'] = optmizerAlgorithm
 
     def get_params_str(self):
-        param_str = ('%i_inits_%i_folds_%i_neurons_%s_balanced_%s_norm_%i_epochs_%i_batch_size_%s_hidden_activation_%s_output_activation'%
-                     (self.n_inits,self.folds,self.n_neurons,str(self.weight),self.norm,self.n_epochs,self.batch_size,
+        param_str = ('%i_inits_%i_folds_%i_neurons_%s_optmizer_%s_balanced_%s_norm_%i_epochs_%i_batch_size_%s_hidden_activation_%s_output_activation'%
+                     (self.n_inits,self.folds,self.n_neurons,self.optmizerAlgorithm,str(self.weight),self.norm,self.n_epochs,self.batch_size,
                       self.hidden_activation,self.output_activation))
         for imetric in self.metrics:
             param_str = param_str + '_' + imetric
