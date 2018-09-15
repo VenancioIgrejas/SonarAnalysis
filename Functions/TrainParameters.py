@@ -52,7 +52,8 @@ def ClassificationFolds(folder, n_folds=2, trgt=None, dev=False, verbose=False):
             print 'Invalid trgt'
             return -1
 
-        CVO = model_selection.StratifiedKFold(trgt, n_folds)
+        skf = model_selection.StratifiedKFold(n_splits=n_folds)
+        CVO = skf.split(X = np.zeros(trgt.shape), y=trgt)
         CVO = list(CVO)
         joblib.dump([CVO],file_name,compress=9)
     else:

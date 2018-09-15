@@ -1,16 +1,33 @@
 import os
-from SpecPath import SpecPath
-import pandas as pd
 
+import sys
+sys.path.insert(0,'..')
+
+import pandas as pd
 import numpy as np
 
 from Functions import TrainParameters
+from Functions import StatFunctions as sf
+from SpecPath import SpecPath
 
+from classificationConfig import CONFIG
+from sklearn.externals import joblib
+
+from sklearn import preprocessing
+
+from keras.models import load_model
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Activation
-from keras.optimizers import SGD
+from keras.optimizers import SGD,Adam
 import keras.callbacks as callbacks
 from keras.utils import np_utils
+from sklearn.utils import class_weight
+
+
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import recall_score
+from matplotlib.ticker import FuncFormatter
+
 
 from keras import backend as K
 
@@ -43,7 +60,13 @@ class OneSpecialistClass(SpecPath):
                                                     n_folds=self.trnparams.folds,
                                                     trgt=all_trgt,
                                                     verbose=True)
-
+    
+    def prepare_target(self,trgt):
+        index_spec, =np.where(trgt==self.spec_num)
+        spec_trgt = trgt*0
+        spec_trgt[index_spec] = 1
+        return spec_trgt
+    
     def preprocess(self,data,trgt,fold):
         prepro_file = os.path.join(self.result_path_fold[fold], "preprocess.jbl".format(fold))
 
@@ -68,12 +91,11 @@ class OneSpecialistClass(SpecPath):
 
         if (self.trnparams.output_activation=='tanh'):
             trgt_sparse = 2*np_utils.to_categorical(trgt.astype(int)) -1
-            trgt_sparse = trgt_sparse[self.spec_num]
+            trgt_sparse = trgt_sparse[:,self.spec_num]
         else:
             trgt_sparse = np_utils.to_categorical(trgt.astype(int))
             #trgt_sparse = np_utils.to_categorical(trgt.astype(int))
         # others preprocessing process
-        self.trgt_sparse = trgt_sparse
         return [data_proc,trgt_sparse,prepro_file]
 
     def output(self,data,trgt,fold):
@@ -81,7 +103,7 @@ class OneSpecialistClass(SpecPath):
 
         if not os.path.exists(output_path):
             train_id , test_id = self.set_cross_validation(trgt)[fold]
-            data_proj,trgt_sparse,_ = self.preprocess(self,data,trgt,fold)
+            data_proj,trgt_sparse,_ = self.preprocess(data,trgt,fold)
             model = train(self,data,trgt,fold)
             output = model.predict(data_proj)
             df = pd.DataFrame(output)
@@ -93,43 +115,54 @@ class OneSpecialistClass(SpecPath):
 
     def train_n_folds(self,data,trgt):
         model = {}
-        for ifold in range(self.params.folds):
+        for ifold in range(self.trnparams.folds):
             model[ifold] = self.train(data,trgt,ifold)
         return model
 
     def train(self,data,trgt,fold):
         train_id , test_id = self.set_cross_validation(trgt)[fold]
-        if self.params.weight:
-            weight  = dict(enumerate(class_weight.compute_class_weight('balanced',np.unique(trgt[train_id]),trgt[train_id])))
+        spec_trgt = self.prepare_target(trgt)
+        if self.trnparams.weight:
+            weight  = dict(enumerate(class_weight.compute_class_weight('balanced',np.unique(spec_trgt[train_id]),spec_trgt[train_id])))
+            self.weight = weight
         else:
             weight = None
-        data_proj,trgt_sparse,_ = self.preprocess(self,data,trgt,fold)
+        data_proj,trgt_sparse,_ = self.preprocess(data,trgt,fold)
         model = self.fit(data_proj,trgt_sparse,train_id,test_id,fold,weight)
         return model
 
     def fit(self,data,target,train_ids,test_ids,num_fold,weight):
 
-        best_model_path = os.path.join(self.result_path_fold,'best_model.h5')
-        best_train_path = os.path.join(self.result_path_fold,'best_train.csv')
+        best_model_path = os.path.join(self.result_path_fold[num_fold],'best_model.h5')
+        best_train_path = os.path.join(self.result_path_fold[num_fold],'best_train.csv')
 
-
-        if os.path.exists(best_model_path):
+        
+        if not os.path.exists(best_model_path):
+            
             filename = {}
             filepath = {}
-
+            
+            best_loss = 999
+            best_init = 0
+            
+            print "Starting train of fold {0}".format(num_fold+1)
             for init in range(self.trnparams.n_inits):
-                my_model = Sequencial()
-
-                my_model.add(Dense(data.shape[1],input_dim=data.shape[1],
-                                    init='identity',trainable=False))
-
-                my_model.add(Activation('linear'))
-
-            #look this point of code
-                my_model.add(Dense(self.trnparams.n_neurons, input_dim=data.shape[1], init='uniform'))
+                print "[+] {0} of {1} inits".format(init+1,self.trnparams.n_inits)
+                my_model = Sequential()
+                
+                my_model.add(Dense(data.shape[1],
+                                input_dim=data.shape[1],
+                                kernel_initializer='identity',
+                                trainable=False))
+                my_model.add(Activation('tanh'))
+                
+                my_model.add(Dense(self.trnparams.n_neurons, input_dim=data.shape[1],
+                                        kernel_initializer='uniform'))
+                
                 my_model.add(Activation(self.trnparams.hidden_activation))
-
-                my_model.add(Dense(target.shape[1], init='uniform'))
+                
+                my_model.add(Dense(1,kernel_initializer='uniform'))
+                
                 my_model.add(Activation(self.trnparams.output_activation))
 
                 sgd = SGD(lr=self.trnparams.learning_rate,decay=self.trnparams.learning_decay,
@@ -137,9 +170,9 @@ class OneSpecialistClass(SpecPath):
 
             # compile the model
 
-                my_model.compile(loss=self.trnparams.loss, optimizer=sgd, metrics=metrics)
+                my_model.compile(loss=self.trnparams.loss, optimizer=sgd, metrics=self.trnparams.metrics)
 
-                filepath[init] = os.path.join(self.result_path_fold,'{0}_init_model.h5'.format(init))
+                filepath[init] = os.path.join(self.result_path_fold[num_fold],'{0}_init_model.h5'.format(init))
 
                 saveBestModel = callbacks.ModelCheckpoint(filepath[init], monitor='val_loss', verbose=0,
                                             save_best_only=True,
@@ -147,7 +180,7 @@ class OneSpecialistClass(SpecPath):
                                             mode='auto',
                                             period=1)
 
-                filename[init] = os.path.join(self.result_path_fold,'{0}_init_train.csv'.format(init))
+                filename[init] = os.path.join(self.result_path_fold[num_fold],'{0}_init_train.csv'.format(init))
 
                 csvLog = callbacks.CSVLogger(filename[init])
 
@@ -156,11 +189,11 @@ class OneSpecialistClass(SpecPath):
                                                         mode='auto')
 
                 init_trn_desc = my_model.fit(data[train_ids], target[train_ids],
-                                                nb_epoch=trn_params.n_epochs,
-                                                batch_size=trn_params.batch_size,
-                                                callbacks=[earlyStopping],
+                                                nb_epoch=self.trnparams.n_epochs,
+                                                batch_size=self.trnparams.batch_size,
+                                                callbacks=[earlyStopping,saveBestModel,csvLog],
                                                 class_weight=weight,
-                                                verbose=trn_params.train_verbose,
+                                                verbose=self.trnparams.train_verbose,
                                                 validation_data=(data[test_ids],
                                                                 target[test_ids]),
                                                 shuffle=True)
@@ -168,9 +201,10 @@ class OneSpecialistClass(SpecPath):
 
 
                 if np.min(init_trn_desc.history['val_loss']) < best_loss:
-                    best_init = i_init
+                    best_init = init
+                    best_loss = np.min(init_trn_desc.history['val_loss'])
 
-
+            
             os.rename(filepath[best_init], best_model_path)
             os.rename(filename[best_init], best_train_path)
 
@@ -183,5 +217,5 @@ class OneSpecialistClass(SpecPath):
 
             return load_model(best_model_path)
         else:
-            print "Loading model file!"
+            print "Loading model file of fold {}".format(num_fold+1)
             return load_model(best_model_path)
