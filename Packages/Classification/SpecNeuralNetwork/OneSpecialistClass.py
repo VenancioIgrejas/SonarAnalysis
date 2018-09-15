@@ -95,21 +95,22 @@ class OneSpecialistClass(SpecPath):
         else:
             trgt_sparse = np_utils.to_categorical(trgt.astype(int))
             #trgt_sparse = np_utils.to_categorical(trgt.astype(int))
+            trgt_sparse = trgt_sparse[:,self.spec_num]
         # others preprocessing process
         return [data_proc,trgt_sparse,prepro_file]
 
     def output(self,data,trgt,fold):
-        output_path = os.path.join(self.result_path_fold,'output.csv')
+        output_path = os.path.join(self.result_path_fold[fold],'output.csv')
 
         if not os.path.exists(output_path):
             train_id , test_id = self.set_cross_validation(trgt)[fold]
             data_proj,trgt_sparse,_ = self.preprocess(data,trgt,fold)
-            model = train(self,data,trgt,fold)
+            model = self.train(data,trgt,fold)
             output = model.predict(data_proj)
             df = pd.DataFrame(output)
             df.to_csv(output_path, index=False)
         else:
-            output = pd.read_csv(output_path).values[0]
+            output = pd.read_csv(output_path).values
 
         return output
 
@@ -154,7 +155,7 @@ class OneSpecialistClass(SpecPath):
                                 input_dim=data.shape[1],
                                 kernel_initializer='identity',
                                 trainable=False))
-                my_model.add(Activation('tanh'))
+                my_model.add(Activation('relu'))
                 
                 my_model.add(Dense(self.trnparams.n_neurons, input_dim=data.shape[1],
                                         kernel_initializer='uniform'))
@@ -165,12 +166,17 @@ class OneSpecialistClass(SpecPath):
                 
                 my_model.add(Activation(self.trnparams.output_activation))
 
-                sgd = SGD(lr=self.trnparams.learning_rate,decay=self.trnparams.learning_decay,
-                                momentum=self.trnparams.momentum, nesterov=self.trnparams.nesterov)
+                if self.trnparams.optmizerAlgorithm == 'SGD':
+                    opt = SGD(lr=self.trnparams.learning_rate,decay=self.trnparams.learning_decay,
+                              momentum=self.trnparams.momentum, nesterov=self.trnparams.nesterov)
+                
+                if self.trnparams.optmizerAlgorithm == 'Adam':
+                    opt = Adam(lr=self.trnparams.learning_rate, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
+	                
 
             # compile the model
 
-                my_model.compile(loss=self.trnparams.loss, optimizer=sgd, metrics=self.trnparams.metrics)
+                my_model.compile(loss=self.trnparams.loss, optimizer=opt, metrics=self.trnparams.metrics)
 
                 filepath[init] = os.path.join(self.result_path_fold[num_fold],'{0}_init_model.h5'.format(init))
 
@@ -189,7 +195,7 @@ class OneSpecialistClass(SpecPath):
                                                         mode='auto')
 
                 init_trn_desc = my_model.fit(data[train_ids], target[train_ids],
-                                                nb_epoch=self.trnparams.n_epochs,
+                                                epochs=self.trnparams.n_epochs,
                                                 batch_size=self.trnparams.batch_size,
                                                 callbacks=[earlyStopping,saveBestModel,csvLog],
                                                 class_weight=weight,
