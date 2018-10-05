@@ -1,4 +1,4 @@
-""" 
+"""
   This file contents stat functions
 """
 
@@ -22,3 +22,18 @@ def KLDiv(p,q):
 			#print "KLDiv: p= %f, q=%f, kl_div= %f"%(p[i],q[i],kl_values[i])
 
 	return [np.sum(kl_values),kl_values]
+
+def sp(eff):
+    """
+    SP of list
+        paramter is a list with all efficient of each class
+        
+    References:
+        Thesis TESE - Classificacao Neural de Sinais de Sonar Passivo - Joao Baptista 2007 - UFRJ pg.111
+        
+    """
+    if (type(eff)==list):
+        eff = np.array(eff)
+    np.mean(eff)
+    prod_nroot = np.product(np.power(eff,1/float(eff.shape[0])))
+    return np.sqrt(np.mean(eff)*prod_nroot)

@@ -5,10 +5,12 @@ sys.path.insert(0,'..')
 
 import pandas as pd
 import numpy as np
+import keras.backend as K
 
 from Functions import TrainParameters
 from Functions import StatFunctions as sf
 from SpecPath import SpecPath
+from PCDSpecialist import PCDIndependent,TrnParams
 
 from classificationConfig import CONFIG
 from sklearn.externals import joblib
@@ -40,7 +42,7 @@ class OneSpecialistClass(SpecPath):
         self.resultPath = pathResult
         self.result_path_fold = {}
         self.result_spec_model = os.path.join(pathResult,self.spec_model)
-        self.result_spec_figures =  os.path.join(pathResult,self.spec_model)
+        self.result_spec_figures =  os.path.join(pathResult,self.spec_figures)
 
         for ifold in range(trnParams.folds):
             self.result_path_fold[ifold] = os.path.join(pathResult,self.path_fold[ifold])
@@ -55,27 +57,70 @@ class OneSpecialistClass(SpecPath):
 
 
 
+    def check_train(self):
+        flag = True
+        for ifold in range(self.trnparams.folds):
+            file = os.path.join(self.result_path_fold[ifold], "preprocess.jbl".format(ifold))
+            if not os.path.exists(file):
+                print "train first Fold {0} of Specialist {1}".format(ifold,self.spec_num)
+                flag = False
+        return flag
+
     def set_cross_validation(self,all_trgt):
         return TrainParameters.ClassificationFolds(folder=self.result_spec_model,
                                                     n_folds=self.trnparams.folds,
                                                     trgt=all_trgt,
-                                                    verbose=True)
-    
+                                                    verbose=False)
+
     def prepare_target(self,trgt):
-        index_spec, =np.where(trgt==self.spec_num)
+        index_spec, = np.where(trgt==self.spec_num)
         spec_trgt = trgt*0
         spec_trgt[index_spec] = 1
         return spec_trgt
-    
+#    /home/venancio/WorkPlace/SonarAnalysis/Results/Classification/dev/176119_data_24classes/0_spec_5_inits_10_folds_20_neurons_Adam_optmizer_True_balanced_mapstd_norm_1000_epochs_128_batch_size_tanh_hidden_activation_tanh_output_activation_accuracy_metric_mean_squared_error_loss/model/7_fold/preprocess.jbl
+
+    def train_pcd(self,data,trgt,fold,n_components,trn_params=None):
+        PCD_folder = os.path.join(self.result_path_fold[fold],"PCD")
+
+        if not os.path.exists(PCD_folder):
+            os.makedirs(PCD_folder)
+
+        train_id , test_id = self.set_cross_validation(trgt)[fold]
+        spec_trgt = self.prepare_target(trgt,)
+        data_proj,trgt_sparse,_ = self.preprocess(data,trgt,fold)
+        ipcd = PCDIndependent(n_components=n_components)
+
+        if trn_params is None:
+            trn_params = TrnParams(learning_rate=0.001,batch_size=128,init=10,optimizers='adam')
+
+        trn_params.to_json(PCD_folder)
+
+        ipcd.fit(data=data_proj,
+                 target=trgt_sparse,
+                 train_ids=train_id,
+                 test_ids=test_id,
+                 trn_params=trn_params,
+                 path=PCD_folder,
+                 class_weight=self._get_weight(spec_trgt,train_id))
+
+        return ipcd
+
+
+    def transform_data_pcd(self,data,trgt,fold,n_components,trn_params=None):
+        ipcd = train_pcd(data,trgt,fold,n_components,trn_params)
+        return ipcd.transform(data)
+
     def preprocess(self,data,trgt,fold):
         prepro_file = os.path.join(self.result_path_fold[fold], "preprocess.jbl".format(fold))
-
+        #print prepro_file
         if not (os.path.exists(prepro_file)):
             train_id, test_id = self.set_cross_validation(trgt)[fold]
-
-            print 'NeuralClassication preprocess function: creating scaler for fold %i'%(fold)
+            if self.trnparams.verbose == True:
+                print 'NeuralClassication preprocess function: creating scaler for fold %i'%(fold)
             # normalize data based in train set
             if self.trnparams.norm == 'mapstd':
+                #print data.shape
+                #print len(train_id)
                 scaler = preprocessing.StandardScaler().fit(data[train_id,:])
             elif self.trnparams.norm == 'mapstd_rob':
                 scaler = preprocessing.RobustScaler().fit(data[train_id,:])
@@ -84,7 +129,8 @@ class OneSpecialistClass(SpecPath):
             joblib.dump([scaler],prepro_file,compress=9)
 
         else:
-            print "NeuralClassication preprocess function: loading scaler for fold %i"%(fold)
+            if self.trnparams.verbose == True:
+                print "NeuralClassication preprocess function: loading scaler for fold %i"%(fold)
             [scaler] = joblib.load(prepro_file)
 
         data_proc = scaler.transform(data)
@@ -103,14 +149,15 @@ class OneSpecialistClass(SpecPath):
         output_path = os.path.join(self.result_path_fold[fold],'output.csv')
 
         if not os.path.exists(output_path):
+
             train_id , test_id = self.set_cross_validation(trgt)[fold]
             data_proj,trgt_sparse,_ = self.preprocess(data,trgt,fold)
             model = self.train(data,trgt,fold)
-            output = model.predict(data_proj)
+            output = model.predict(data_proj)[:,0]
             df = pd.DataFrame(output)
             df.to_csv(output_path, index=False)
         else:
-            output = pd.read_csv(output_path).values
+            output = pd.read_csv(output_path).values[:,0]
 
         return output
 
@@ -118,18 +165,19 @@ class OneSpecialistClass(SpecPath):
         model = {}
         for ifold in range(self.trnparams.folds):
             model[ifold] = self.train(data,trgt,ifold)
+
         return model
 
-    def train(self,data,trgt,fold):
+    def train(self,data,trgt,fold,by=None,n_components=10,trn_params=None):
+
+        if by is "PCD":
+            data = transform_data_pcd(data,trgt,fold,n_components,trn_params)
+
         train_id , test_id = self.set_cross_validation(trgt)[fold]
         spec_trgt = self.prepare_target(trgt)
-        if self.trnparams.weight:
-            weight  = dict(enumerate(class_weight.compute_class_weight('balanced',np.unique(spec_trgt[train_id]),spec_trgt[train_id])))
-            self.weight = weight
-        else:
-            weight = None
+
         data_proj,trgt_sparse,_ = self.preprocess(data,trgt,fold)
-        model = self.fit(data_proj,trgt_sparse,train_id,test_id,fold,weight)
+        model = self.fit(data_proj,trgt_sparse,train_id,test_id,fold,self._get_weight(spec_trgt,train_id))
         return model
 
     def fit(self,data,target,train_ids,test_ids,num_fold,weight):
@@ -137,42 +185,42 @@ class OneSpecialistClass(SpecPath):
         best_model_path = os.path.join(self.result_path_fold[num_fold],'best_model.h5')
         best_train_path = os.path.join(self.result_path_fold[num_fold],'best_train.csv')
 
-        
+
         if not os.path.exists(best_model_path):
-            
+
             filename = {}
             filepath = {}
-            
+
             best_loss = 999
             best_init = 0
-            
-            print "Starting train of fold {0}".format(num_fold+1)
+
+            print "Starting train of fold {0}".format(num_fold)
             for init in range(self.trnparams.n_inits):
                 print "[+] {0} of {1} inits".format(init+1,self.trnparams.n_inits)
                 my_model = Sequential()
-                
+
                 my_model.add(Dense(data.shape[1],
                                 input_dim=data.shape[1],
                                 kernel_initializer='identity',
                                 trainable=False))
                 my_model.add(Activation('relu'))
-                
+
                 my_model.add(Dense(self.trnparams.n_neurons, input_dim=data.shape[1],
                                         kernel_initializer='uniform'))
-                
+
                 my_model.add(Activation(self.trnparams.hidden_activation))
-                
+
                 my_model.add(Dense(1,kernel_initializer='uniform'))
-                
+
                 my_model.add(Activation(self.trnparams.output_activation))
 
                 if self.trnparams.optmizerAlgorithm == 'SGD':
                     opt = SGD(lr=self.trnparams.learning_rate,decay=self.trnparams.learning_decay,
                               momentum=self.trnparams.momentum, nesterov=self.trnparams.nesterov)
-                
+
                 if self.trnparams.optmizerAlgorithm == 'Adam':
                     opt = Adam(lr=self.trnparams.learning_rate, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
-	                
+
 
             # compile the model
 
@@ -209,8 +257,12 @@ class OneSpecialistClass(SpecPath):
                 if np.min(init_trn_desc.history['val_loss']) < best_loss:
                     best_init = init
                     best_loss = np.min(init_trn_desc.history['val_loss'])
+                    print "spec {0}: fold -> {1}  best init -> {2} with min val_loss -> {3}".format(self.spec_num,
+                                                                                                    num_fold,
+                                                                                                    best_init,
+                                                                                                    best_loss)
 
-            
+
             os.rename(filepath[best_init], best_model_path)
             os.rename(filename[best_init], best_train_path)
 
@@ -223,5 +275,33 @@ class OneSpecialistClass(SpecPath):
 
             return load_model(best_model_path)
         else:
-            print "Loading model file of fold {}".format(num_fold+1)
+            if self.trnparams.verbose == True:
+                print "Loading model file of fold {}".format(num_fold)
             return load_model(best_model_path)
+
+    def _get_weight(self,spec_trgt,train_id):
+        if self.trnparams.weight:
+            if (self.trnparams.output_activation=='tanh'):
+                list_weight = class_weight.compute_class_weight('balanced',np.unique(spec_trgt[train_id]),spec_trgt[train_id])
+                weight = {-1:list_weight[0],1:list_weight[1]}
+            else:
+                weight  = dict(enumerate(class_weight.compute_class_weight('balanced',np.unique(spec_trgt[train_id]),spec_trgt[train_id])))
+            self.weight = weight
+        else:
+            weight = None
+        return weight
+
+    def train_analysis(self,x='epoch',y='loss',fold=None):
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots()
+        if not fold is None:
+            best_train_file = os.path.join(self.result_path_fold[fold],'best_train.csv')
+            dt_train = pd.read_csv(best_train_file)
+            dt_train.plot(x,y,ax=ax)
+        else:
+            for ifold in range(self.trnparams.folds):
+                best_train_file = os.path.join(self.result_path_fold[ifold],'best_train.csv')
+                dt_train = pd.read_csv(best_train_file)
+
+
+        return fig, ax, dt_train

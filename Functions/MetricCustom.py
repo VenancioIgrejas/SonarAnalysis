@@ -5,20 +5,20 @@ import tensorflow as tf
 
 
 def ind_SP(y_true, y_pred):
-    
+
     value_max = 1
     value_min = -1
     num_classes = 24
-    
+
     true_positives = K.sum(K.round(K.clip(y_true * y_pred, value_min, value_max)))
     predicted_positives = K.sum(K.round(K.clip(y_pred, value_min, value_max)))
     possible_positives = K.sum(K.round(K.clip(y_true, value_min, value_max)))
-    
+
     precision_tf = true_positives / (predicted_positives + K.epsilon())
     recall = true_positives / (possible_positives + K.epsilon())
 
-    sp_tf = K.sqrt(K.mean(recall)*K.prod(K.pow(recall,1/num_classes)))
-    
+    sp_tf = K.sqrt(K.mean(recall)*K.prod(K.pow(recall,1/float(num_classes))))
+
     return sp_tf
 
 def f1_score(y_true, y_pred):
@@ -60,4 +60,3 @@ def f1_score(y_true, y_pred):
     precision = tp / (tp + fp)
     recall = tp / (tp + fn)
     return 2 * ((precision * recall) / (precision + recall))
-
