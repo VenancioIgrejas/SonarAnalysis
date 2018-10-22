@@ -40,6 +40,8 @@ class OneSpecialistClass(SpecPath):
         self.spec_num = spec_num
         self.trnparams = trnParams
         self.resultPath = pathResult
+        self.type_data = 'train'
+        self.result_path_fold = {}
         self.result_path_fold = {}
         self.result_spec_model = os.path.join(pathResult,self.spec_model)
         self.result_spec_figures =  os.path.join(pathResult,self.spec_figures)
@@ -54,9 +56,21 @@ class OneSpecialistClass(SpecPath):
 
         if not os.path.exists(self.result_spec_figures):
             os.makedirs(self.result_spec_figures)
+    
+        self.set_trparams_pcd()
 
-
-
+    
+    def set_trparams_pcd(self,trn_params=None,n_componentes=10):
+        self.n_componets = n_componentes
+        if trn_params is None:
+            self.trn_params_PCD = TrnParams(learning_rate=0.001,batch_size=128,init=10,optimizers='adam')
+        else:
+            self.trn_params_PCD = trn_params
+        
+    def set_partition_data(self,type='train'):
+        print 'set '+type+' for transform with PCD'
+        self.type_data = type
+    
     def check_train(self):
         flag = True
         for ifold in range(self.trnparams.folds):
@@ -66,8 +80,10 @@ class OneSpecialistClass(SpecPath):
                 flag = False
         return flag
 
-    def set_cross_validation(self,all_trgt):
-        return TrainParameters.ClassificationFolds(folder=self.result_spec_model,
+    def set_cross_validation(self,all_trgt,path=None):
+            if path is None:
+                path = self.result_spec_model
+            return TrainParameters.ClassificationFolds(folder=path,
                                                     n_folds=self.trnparams.folds,
                                                     trgt=all_trgt,
                                                     verbose=False)
@@ -77,50 +93,55 @@ class OneSpecialistClass(SpecPath):
         spec_trgt = trgt*0
         spec_trgt[index_spec] = 1
         return spec_trgt
-#    /home/venancio/WorkPlace/SonarAnalysis/Results/Classification/dev/176119_data_24classes/0_spec_5_inits_10_folds_20_neurons_Adam_optmizer_True_balanced_mapstd_norm_1000_epochs_128_batch_size_tanh_hidden_activation_tanh_output_activation_accuracy_metric_mean_squared_error_loss/model/7_fold/preprocess.jbl
 
-    def train_pcd(self,data,trgt,fold,n_components,trn_params=None):
-        PCD_folder = os.path.join(self.result_path_fold[fold],"PCD")
+    def train_pcd(self,data,trgt,fold):
+        if self.type_data == 'train':
+            PCD_folder = os.path.join(self.result_path_fold[fold],"PCD")
+            
+        if self.type_data == 'test':
+            print "accessing PCD folder for teste data"
+            PCD_folder = os.path.join(self.result_path_fold[fold],"PCD_teste_data")
 
         if not os.path.exists(PCD_folder):
             os.makedirs(PCD_folder)
 
-        train_id , test_id = self.set_cross_validation(trgt)[fold]
-        spec_trgt = self.prepare_target(trgt,)
-        data_proj,trgt_sparse,_ = self.preprocess(data,trgt,fold)
-        ipcd = PCDIndependent(n_components=n_components)
-
-        if trn_params is None:
-            trn_params = TrnParams(learning_rate=0.001,batch_size=128,init=10,optimizers='adam')
-
-        trn_params.to_json(PCD_folder)
+        train_id , test_id = self.set_cross_validation(trgt,PCD_folder)[fold]
+        spec_trgt = self.prepare_target(trgt)
+        
+        data_proj,trgt_sparse,_ = self.preprocess(data,trgt,fold,PCD_folder+'/preprocess.jbl')
+        
+        ipcd = PCDIndependent(n_components=self.n_componets)
+        
+        self.trn_params_PCD.to_json(PCD_folder)
 
         ipcd.fit(data=data_proj,
                  target=trgt_sparse,
                  train_ids=train_id,
                  test_ids=test_id,
-                 trn_params=trn_params,
+                 trn_params=self.trn_params_PCD,
                  path=PCD_folder,
                  class_weight=self._get_weight(spec_trgt,train_id))
 
         return ipcd
-
-
-    def transform_data_pcd(self,data,trgt,fold,n_components,trn_params=None):
-        ipcd = train_pcd(data,trgt,fold,n_components,trn_params)
+    
+    def transform_data_pcd(self,data,trgt,fold):
+        ipcd = self.train_pcd(data,trgt,fold)
         return ipcd.transform(data)
 
-    def preprocess(self,data,trgt,fold):
-        prepro_file = os.path.join(self.result_path_fold[fold], "preprocess.jbl".format(fold))
+    def preprocess(self,data,trgt,fold,filename='preprocess.jbl'):
+        prepro_file = os.path.join(self.result_path_fold[fold], filename)
         #print prepro_file
         if not (os.path.exists(prepro_file)):
-            train_id, test_id = self.set_cross_validation(trgt)[fold]
+            if self.type_data == 'test':
+                train_id, test_id = self.set_cross_validation(trgt,path=os.path.join(self.result_path_fold[fold],"PCD_teste_data"))[fold]
+            else:
+                train_id, test_id = self.set_cross_validation(trgt)[fold]
             if self.trnparams.verbose == True:
                 print 'NeuralClassication preprocess function: creating scaler for fold %i'%(fold)
             # normalize data based in train set
             if self.trnparams.norm == 'mapstd':
-                #print data.shape
-                #print len(train_id)
+                print data.shape
+                print len(train_id)
                 scaler = preprocessing.StandardScaler().fit(data[train_id,:])
             elif self.trnparams.norm == 'mapstd_rob':
                 scaler = preprocessing.RobustScaler().fit(data[train_id,:])
@@ -132,7 +153,6 @@ class OneSpecialistClass(SpecPath):
             if self.trnparams.verbose == True:
                 print "NeuralClassication preprocess function: loading scaler for fold %i"%(fold)
             [scaler] = joblib.load(prepro_file)
-
         data_proc = scaler.transform(data)
 
         if (self.trnparams.output_activation=='tanh'):
@@ -145,38 +165,63 @@ class OneSpecialistClass(SpecPath):
         # others preprocessing process
         return [data_proc,trgt_sparse,prepro_file]
 
-    def output(self,data,trgt,fold):
+    def output(self,data,trgt,fold,met_compact=None,flag_already_trained = False):
         output_path = os.path.join(self.result_path_fold[fold],'output.csv')
 
         if not os.path.exists(output_path):
 
             train_id , test_id = self.set_cross_validation(trgt)[fold]
-            data_proj,trgt_sparse,_ = self.preprocess(data,trgt,fold)
-            model = self.train(data,trgt,fold)
+            
+            if met_compact is 'PCD':
+                PCD_folder = os.path.join(self.result_path_fold[fold],"PCD")
+                data_proj,trgt_sparse,_ = self.preprocess(data,
+                                                          trgt,
+                                                          fold,'preprocess_PCD.jbl')
+            else:
+                data_proj,trgt_sparse,_ = self.preprocess(data,trgt,fold)
+                
+            if flag_already_trained:
+                model = self.load_model(fold)
+            else:
+                model = self.train(data,trgt,fold,met_compact=met_compact)
+                
+                
+                
             output = model.predict(data_proj)[:,0]
             df = pd.DataFrame(output)
             df.to_csv(output_path, index=False)
+            
         else:
+            
             output = pd.read_csv(output_path).values[:,0]
 
         return output
 
-    def train_n_folds(self,data,trgt):
+    def train_n_folds(self,data,trgt,met_compact=None):
         model = {}
         for ifold in range(self.trnparams.folds):
-            model[ifold] = self.train(data,trgt,ifold)
+            model[ifold] = self.train(data,trgt,ifold,met_compact)
 
         return model
-
-    def train(self,data,trgt,fold,by=None,n_components=10,trn_params=None):
-
-        if by is "PCD":
-            data = transform_data_pcd(data,trgt,fold,n_components,trn_params)
-
+    
+    def load_model(self,num_fold):
+        best_model_path = os.path.join(self.result_path_fold[num_fold],'best_model.h5')
+        try:
+            return load_model(best_model_path)
+        except:
+            print "file {0} not found ".format(best_model_path)
+            
+    def train(self,data,trgt,fold,met_compact=None):
+        
         train_id , test_id = self.set_cross_validation(trgt)[fold]
         spec_trgt = self.prepare_target(trgt)
-
-        data_proj,trgt_sparse,_ = self.preprocess(data,trgt,fold)
+        
+        if met_compact is "PCD":
+            #data = self.transform_data_pcd(data,trgt,fold)
+            data_proj,trgt_sparse,_ = self.preprocess(data,trgt,fold,'preprocess_PCD.jbl')
+        else:
+            data_proj,trgt_sparse,_ = self.preprocess(data,trgt,fold)
+        
         model = self.fit(data_proj,trgt_sparse,train_id,test_id,fold,self._get_weight(spec_trgt,train_id))
         return model
 
@@ -215,11 +260,18 @@ class OneSpecialistClass(SpecPath):
                 my_model.add(Activation(self.trnparams.output_activation))
 
                 if self.trnparams.optmizerAlgorithm == 'SGD':
-                    opt = SGD(lr=self.trnparams.learning_rate,decay=self.trnparams.learning_decay,
-                              momentum=self.trnparams.momentum, nesterov=self.trnparams.nesterov)
+                    opt = SGD(lr=self.trnparams.learning_rate,
+                              decay=self.trnparams.learning_decay,
+                              momentum=self.trnparams.momentum, 
+                              nesterov=self.trnparams.nesterov)
 
                 if self.trnparams.optmizerAlgorithm == 'Adam':
-                    opt = Adam(lr=self.trnparams.learning_rate, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
+                    opt = Adam(lr=self.trnparams.learning_rate, 
+                               beta_1=0.9, 
+                               beta_2=0.999, 
+                               epsilon=None, 
+                               decay=0.0, 
+                               amsgrad=False)
 
 
             # compile the model
@@ -276,16 +328,20 @@ class OneSpecialistClass(SpecPath):
             return load_model(best_model_path)
         else:
             if self.trnparams.verbose == True:
-                print "Loading model file of fold {}".format(num_fold)
+                print "Loading model file of fold {0}".format(num_fold)
             return load_model(best_model_path)
 
     def _get_weight(self,spec_trgt,train_id):
         if self.trnparams.weight:
             if (self.trnparams.output_activation=='tanh'):
-                list_weight = class_weight.compute_class_weight('balanced',np.unique(spec_trgt[train_id]),spec_trgt[train_id])
+                list_weight = class_weight.compute_class_weight('balanced',
+                                                                np.unique(spec_trgt[train_id]),
+                                                                spec_trgt[train_id])
                 weight = {-1:list_weight[0],1:list_weight[1]}
             else:
-                weight  = dict(enumerate(class_weight.compute_class_weight('balanced',np.unique(spec_trgt[train_id]),spec_trgt[train_id])))
+                weight  = dict(enumerate(class_weight.compute_class_weight('balanced',
+                                                                           np.unique(spec_trgt[train_id]),
+                                                                           spec_trgt[train_id])))
             self.weight = weight
         else:
             weight = None

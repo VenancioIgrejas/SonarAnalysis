@@ -115,7 +115,7 @@ class SpecialistIntegrator(IntegratorPath):
         
         return output_class_specialist, df_without_index, output_sp
     
-    def _df_classes_params(self,path=None):
+    def _df_classes_params(self,file=None):
         list_df = []
         for ispec in self.list_specialist:
             num_spec = ispec.spec_num
@@ -127,8 +127,8 @@ class SpecialistIntegrator(IntegratorPath):
         
         df_concat = pd.concat(list_df)
         
-        if not path is None:
-            df_concat.to_csv(path,header=True)
+        if not file is None:
+            df_concat.to_csv(file,header=True)
         
         return df_concat
         

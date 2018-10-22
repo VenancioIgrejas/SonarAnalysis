@@ -122,6 +122,85 @@ class NeuralClassificationTrnParams(TrnParams):
 
         param_str = param_str + '_metric_' + self.params['loss'] + '_loss'
         return param_str
+    
+class NeuralNetworkTrnParams(TrnParams):
+    """
+        Specialist NN Classification TrnParams
+    """
+
+    def __init__(self,
+                 n_inits=2,
+                 n_folds=2,
+                 n_neurons=5,
+                 norm='mapstd',
+                 weight = True,
+                 verbose=False,
+                 train_verbose=False,
+                 n_epochs=10,
+                 learning_rate=0.001,
+                 beta_1 = 0.9,
+                 beta_2 = 0.999,
+                 epsilon = 1e-08,
+                 learning_decay=1e-6,
+                 momentum=0.3,
+                 nesterov=True,
+                 patience=5,
+                 pcd=None,
+                 batch_size=4,
+                 hidden_activation='tanh',
+                 output_activation='tanh',
+                 metrics=['accuracy'],
+                 loss='mean_squared_error',
+                 optmizerAlgorithm='SGD'
+                ):
+        
+        self.__dict__['n_inits'] = n_inits
+        self.__dict__['folds'] = n_folds
+        self.__dict__['n_neurons'] = n_neurons
+        self.__dict__['pcd'] = pcd
+        self.__dict__['weight'] = weight
+        self.__dict__['norm'] = norm
+        self.__dict__['verbose'] = verbose
+        self.__dict__['train_verbose'] = train_verbose
+
+        # tra__dict__ams
+        self.__dict__['n_epochs'] = n_epochs
+        self.__dict__['learning_rate'] = learning_rate
+        self.__dict__['beta_1'] = beta_1
+        self.__dict__['beta_2'] = beta_2
+        self.__dict__['epsilon'] = epsilon
+        self.__dict__['learning_decay'] = learning_decay
+        self.__dict__['momentum'] = momentum
+        self.__dict__['nesterov'] = nesterov
+        self.__dict__['patience'] = patience
+        self.__dict__['batch_size'] = batch_size
+        self.__dict__['hidden_activation'] = hidden_activation
+        self.__dict__['output_activation'] = output_activation
+        self.__dict__['metrics'] = metrics
+        self.__dict__['loss'] = loss
+        self.__dict__['optmizerAlgorithm'] = optmizerAlgorithm
+
+    def __next__(self):
+        for key, value in self.__dict__.items():   
+            yield key, value
+        raise StopIteration
+    
+    def __iter__(self):
+        return self.__next__()
+    
+    def getParamsStr(self):
+        for key, value in self:
+            print key, value
+    
+    def get_params_str(self):
+        param_str = ('%s_PCD_%i_inits_%i_folds_%i_neurons_%s_optmizer_%s_balanced_%s_norm_%i_epochs_%i_batch_size_%s_hidden_activation_%s_output_activation'%
+                     (str(self.pcd),self.n_inits,self.folds,self.n_neurons,self.optmizerAlgorithm,str(self.weight),self.norm,self.n_epochs,self.batch_size,
+                      self.hidden_activation,self.output_activation))
+        for imetric in self.metrics:
+            param_str = param_str + '_' + imetric
+
+        param_str = param_str + '_metric_' + self.loss + '_loss'
+        return param_str
 
 class SpecialistClassificationTrnParams(TrnParams):
     """

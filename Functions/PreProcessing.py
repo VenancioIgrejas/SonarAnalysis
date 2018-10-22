@@ -9,8 +9,6 @@ from keras.layers.core import Dense, Dropout, Activation
 from keras.optimizers import SGD
 import keras.callbacks as callbacks
 from keras.utils import np_utils
-from keras.layers import Merge
-
 from keras import backend as K
 
 class TrnParams(object):

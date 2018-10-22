@@ -1,6 +1,6 @@
 import os
 import numpy as np
-from ModelPath import ModelPath
+from Functions.ModelPath import ModelPath
 from Functions import TrainParameters
 
 class SpecPath(ModelPath):

@@ -147,6 +147,8 @@ class PCDIndependent(object):
 					best_loss = 999
 					best_model = None
 					best_desc = {}
+                    			filepath = {}
+                    
 					for i_init in range(trn_params.init):
 						print 'Init: %i of %i'%(i_init+1,trn_params.init)
 						my_model = Sequential()
@@ -183,7 +185,14 @@ class PCDIndependent(object):
 						csv_logger = callbacks.CSVLogger(os.path.join(path,
 										'{0}_numComponent_{1}_init_training.csv'.format(ipcd,i_init+1)))
 
-
+                        			filepath[i_init] = os.path.join(path,'{0}comp_{1}_init_model.h5'.format(ipcd,i_init+1))
+                        
+                        			saveBestModel = callbacks.ModelCheckpoint(filepath[i_init], monitor='val_loss', verbose=0,
+                                            						  save_best_only=True,
+                                            						  save_weights_only=False,
+                                            						  mode='auto',
+                                            						  period=1)
+                        
 						# reduce learning rate to train faster
 						reduce_lrn = callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=10,
 												mode='auto',min_delta=0.0001, cooldown=0, min_lr=0)
@@ -192,7 +201,7 @@ class PCDIndependent(object):
 						init_trn_desc = my_model.fit(data[train_ids], target[train_ids],
 	                                        	  		  epochs=trn_params.n_epochs,
 	                                        	  		  batch_size=trn_params.batch_size,
-	                                        	  		  callbacks=[earlyStopping,csv_logger,reduce_lrn],
+	                                        	  		  callbacks=[earlyStopping,csv_logger,reduce_lrn,saveBestModel],
 	                                        	  		  verbose=trn_params.train_verbose,
 	                                        		          class_weight=class_weight,
 	                                        	  		  validation_data=(data[test_ids],
@@ -204,14 +213,17 @@ class PCDIndependent(object):
 						if np.min(init_trn_desc.history['val_loss']) < best_loss:
 							best_init = i_init
                             				best_loss = np.min(init_trn_desc.history['val_loss'])
-                            				best_model = my_model
                             				best_desc['epochs'] = init_trn_desc.epoch
                             				best_desc['acc'] = init_trn_desc.history['acc']
                             				best_desc['loss'] = init_trn_desc.history['loss']
                             				best_desc['val_loss'] = init_trn_desc.history['val_loss']
                             				best_desc['val_acc'] = init_trn_desc.history['val_acc']
-                                                        print "init {0} : epoc -> {1}/ val_loss -> {2}/ val_acc -> {3}".format(best_desc['epochs'],best_desc['val_loss'],best_desc['val_acc'])
-
+                                                        print "init {0} : epoc -> {1}/ val_loss -> {2}/ val_acc -> {3}".format(best_init,max(best_desc['epochs']),min(best_desc['val_loss']),max(best_desc['val_acc']))
+                    			os.rename(filepath[best_init], fileModelPCD)
+                            
+                    			for init in range(trn_params.init):
+                        			if os.path.exists(filepath[init]):
+                            				os.remove(filepath[init])
 
 					for i_init in range(trn_params.init):
                         			if best_init!=i_init:
@@ -223,14 +235,12 @@ class PCDIndependent(object):
                                       					os.path.join(path,
 									'{0}_numComponent_training.csv'.format(ipcd)))
 
-					best_model.save(fileModelPCD)
-
                 			joblib.dump([best_desc],fileTrnPCD,compress=9)
 
 
-					self.models[ipcd] = my_model
+					self.models[ipcd] = load_model(fileModelPCD)
 					self.trn_descs[ipcd] = best_desc
-                			self.pcds[ipcd] = my_model.layers[2].get_weights()[0]
+                			self.pcds[ipcd] = self.models[ipcd].layers[2].get_weights()[0]
 
 
 				if trn_params.verbose :
@@ -251,6 +261,8 @@ class PCDIndependent(object):
 					best_loss = 999
 					best_model = None
 					best_desc = {}
+                    			filepath = {}
+                    
 					for i_init in range(trn_params.init):
 						print 'Init: %i of %i'%(i_init+1,trn_params.init)
 
@@ -266,7 +278,7 @@ class PCDIndependent(object):
 						my_model.add(Activation('tanh'))
 
 						# add a non-linear output layer with max sparse target shape
-						my_model.add(Dense(target.shape[1], kernel_initializer='uniform'))
+						my_model.add(Dense(1, kernel_initializer='uniform'))
 						my_model.add(Activation('tanh'))
 
 						# creating a optimization function using steepest gradient
@@ -287,6 +299,14 @@ class PCDIndependent(object):
 						csv_logger = callbacks.CSVLogger(os.path.join(path,'{0}_numComponent_{1}_init_training.csv'.format(ipcd,i_init+1)))
 
 
+                        			filepath[i_init] = os.path.join(path,'{0}comp_{1}_init_model.h5'.format(ipcd,i_init+1))
+                        
+                        			saveBestModel = callbacks.ModelCheckpoint(filepath[i_init], monitor='val_loss', verbose=0,
+                                            						  save_best_only=True,
+                                            						  save_weights_only=False,
+                                            						  mode='auto',
+                                            						  period=1)
+                        
 						# reduce learning rate to train faster
 						reduce_lrn = callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=10,
 												mode='auto',min_delta=0.0001, cooldown=0, min_lr=0)
@@ -319,7 +339,7 @@ class PCDIndependent(object):
 						init_trn_desc = my_model.fit(data_with_proj[train_ids], target[train_ids],
                 	                          		  	epochs=trn_params.n_epochs,
                 	                          		  	batch_size=trn_params.batch_size,
-                	                          		  	callbacks=[earlyStopping,csv_logger,reduce_lrn],
+                	                          		  	callbacks=[earlyStopping,csv_logger,reduce_lrn,saveBestModel],
                 	                          		  	class_weight=class_weight,
                 	                          		  	verbose=trn_params.train_verbose,
                 	                          		  	validation_data=(data[test_ids],
@@ -329,16 +349,21 @@ class PCDIndependent(object):
 						if np.min(init_trn_desc.history['val_loss']) < best_loss:
 							best_init = i_init
                             				best_loss = np.min(init_trn_desc.history['val_loss'])
-                            				best_model = my_model
                             				best_desc['epochs'] = init_trn_desc.epoch
                             				best_desc['acc'] = init_trn_desc.history['acc']
                             				best_desc['loss'] = init_trn_desc.history['loss']
                             				best_desc['val_loss'] = init_trn_desc.history['val_loss']
                             				best_desc['val_acc'] = init_trn_desc.history['val_acc']
-                                                        print "init {0} : epoc -> {1}/ val_loss -> {2}/ val_acc -> {3}".format(best_desc['epochs'],best_desc['val_loss'],best_desc['val_acc'])
+                                                        print "init {0} : epoc -> {1}/ val_loss -> {2}/ val_acc -> {3}".format(best_init,max(best_desc['epochs']),min(best_desc['val_loss']),max(best_desc['val_acc']))
 
                 			#saving the model and trn in the respective training folder
-
+                            
+                            		os.rename(filepath[best_init], fileModelPCD)
+                            
+                            		for init in range(trn_params.init):
+                                		if os.path.exists(filepath[init]):
+                                    			os.remove(filepath[init])
+                            
                 			for i_init in range(trn_params.init):
                         			if best_init!=i_init:
                             				os.remove(os.path.join(path,
@@ -349,14 +374,14 @@ class PCDIndependent(object):
                                       					os.path.join(path,
 									'{0}_numComponent_training.csv'.format(ipcd)))
 
-					best_model.save(fileModelPCD)
+					
 
                 			joblib.dump([best_desc],fileTrnPCD,compress=9)
 
 
-					self.models[ipcd] = my_model
+					self.models[ipcd] = load_model(fileModelPCD)
 					self.trn_descs[ipcd] = best_desc
-                			self.pcds[ipcd] = my_model.layers[2].get_weights()[0]
+                			self.pcds[ipcd] = self.models[ipcd].layers[2].get_weights()[0]
 
 
                 		if trn_params.verbose:
@@ -364,199 +389,7 @@ class PCDIndependent(object):
 
 		return self
 
-	# function deprecated
-	def fit_auto(self, data, target, train_ids, test_ids, path, trn_params=None,class_weight=None):
-                """
-		PCD Independent fit function
-			data: data to be fitted (events x features)
-			target: class labels - sparse targets (events x number of classes)
-
-			train_ids:  train indexes - user generated
-			test_ids: test indexes - user generated
-			trn_params: class TrnParams (optional)
-		"""
-		print 'PCD Independent fit function'
-
-		if trn_params is None:
-			trn_params = TrnParams()
-
-		#print 'Train Parameters'
-		#trn_params.Print()
-
-        	#opt = Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
-        	opt = SGD(lr=trn_params.learning_rate, decay=trn_params.learning_decay,
-				momentum=trn_params.momentum, nesterov=trn_params.nesterov)
-
-		if trn_params.verbose:
-			print 'PCD Independent Model Struct: %i - %i - %i'%(data.shape[1],1,target.shape[1])
-
-		ipcd = 0
-
-		while(True):
-			print 'Training %i PCD'%(ipcd+1)
-
-			if ipcd == 0:
-				my_model = Sequential()
-
-				# add a linear layer to isolate the input of NN model
-				my_model.add(Dense(data.shape[1],input_dim=data.shape[1], kernel_initializer='identity',trainable=False))
-
-				my_model.add(Activation('linear'))
-
-				# add a non-linear single neuron layer to compress all information
-				my_model.add(Dense(1, input_dim=data.shape[1], kernel_initializer='uniform'))
-				my_model.add(Activation('tanh'))
-
-				# add a non-linear output layer with max sparse target shape
-				my_model.add(Dense(target.shape[1], kernel_initializer='uniform'))
-				my_model.add(Activation('tanh'))
-
-				# creating a optimization function using steepest gradient
-				#sgd = SGD(lr=trn_params.learning_rate, decay=trn_params.learning_decay,
-                #          		  momentum=trn_params.momentum, nesterov=trn_params.nesterov)
-
-				# compile the model
-				my_model.compile(loss='mean_squared_error', optimizer=opt, metrics=['accuracy','mean_squared_error'])
-
-				# early stopping to avoid overtraining
-				earlyStopping = callbacks.EarlyStopping(monitor='val_loss',
-                                                        patience=25, verbose=0,
-                                                        mode='auto')
-
-				# Train model
-				init_trn_desc = my_model.fit(data[train_ids], target[train_ids],
-                                          		  epochs=trn_params.n_epochs,
-                                          		  batch_size=trn_params.batch_size,
-                                          		  callbacks=[earlyStopping],
-                                          		  verbose=trn_params.train_verbose,
-                                                  class_weight=class_weight,
-                                          		  validation_data=(data[test_ids],
-                                                          		   target[test_ids]),
-                                          		  shuffle=True)
-
-                #saving the model and trn in the respective training folder
-				fileModelPCD = os.path.join(path, "{0}comp_model_PCD.h5".format(ipcd))
-				fileTrnPCD = os.path.join(path, "{0}comp_trn_PCD.jbl".format(ipcd))
-
-				my_model.save(fileModelPCD)
-
-                		self.best_desc['epochs'] = init_trn_desc.epoch
-                		self.best_desc['acc'] = init_trn_desc.history['acc']
-                		self.best_desc['loss'] = init_trn_desc.history['loss']
-                		self.best_desc['val_loss'] = init_trn_desc.history['val_loss']
-                		self.best_desc['val_acc'] = init_trn_desc.history['val_acc']
-
-                		joblib.dump([self.best_desc],fileTrnPCD,compress=9)
-
-
-				self.models[ipcd] = my_model
-				self.trn_descs[ipcd] = self.best_desc
-                		self.pcds[ipcd] = my_model.layers[2].get_weights()[0]
-
-				ipcd+=1
-
-				if trn_params.verbose :
-					print 'PCD %i - Train process is done, val_cost: %1.5f'%(ipcd+1,np.min(init_trn_desc.history['val_loss']))
-			else:
-				my_model = Sequential()
-
-				# add a linear layer to isolate the input of NN model
-				my_model.add(Dense(data.shape[1],input_dim=data.shape[1], kernel_initializer='identity',trainable=False))
-
-				my_model.add(Activation('linear'))
-
-				# add a non-linear single neuron layer to compress all information
-				my_model.add(Dense(1, input_dim=data.shape[1], kernel_initializer='uniform'))
-				my_model.add(Activation('tanh'))
-
-				# add a non-linear output layer with max sparse target shape
-				my_model.add(Dense(target.shape[1], kernel_initializer='uniform'))
-				my_model.add(Activation('tanh'))
-
-				# creating a optimization function using steepest gradient
-				sgd = SGD(lr=trn_params.learning_rate, decay=trn_params.learning_decay,
-                          		  momentum=trn_params.momentum, nesterov=trn_params.nesterov)
-
-				# compile the model
-				my_model.compile(loss='mean_squared_error', optimizer=opt, metrics=['accuracy','mean_squared_error'])
-
-				# early stopping to avoid overtraining
-				earlyStopping = callbacks.EarlyStopping(monitor='val_loss',
-                                                        patience=25, verbose=0,
-                                                        mode='auto')
-
-				# remove the projection of previous extracted pcds from random init weights
-				w = my_model.layers[2].get_weights()[0]
-				w_proj = np.zeros_like(w)
-
-				# loop over previous pcds
-				for i_old_pcd in range(ipcd):
-					w_proj = (w_proj + (np.inner(np.inner(self.pcds[i_old_pcd],w),self.pcds[i_old_pcd].T)/
-							    np.inner(self.pcds[i_old_pcd].T,self.pcds[i_old_pcd].T)))
-				w_remove_proj = w - w_proj
-				weights = my_model.layers[2].get_weights()
-				weights[0] = w_remove_proj
-				my_model.layers[2].set_weights(weights)
-
-				# remove the projection of previous extracted pcds from data
-				data_proj = np.zeros_like(data)
-
-				# loop over previous pcds
-				for i_old_pcd in range(ipcd-1):
-					data_proj = (data_proj + (np.inner(np.inner(self.pcds[i_old_pcd].T,data).T,self.pcds[i_old_pcd])/
-								  np.inner(self.pcds[i_old_pcd].T,self.pcds[i_old_pcd].T)))
-
-				data_with_proj = data - data_proj
-
-				# Train model
-				init_trn_desc = my_model.fit(data_with_proj[train_ids], target[train_ids],
-                                          		  epochs=trn_params.n_epochs,
-                                          		  batch_size=trn_params.batch_size,
-                                          		  callbacks=[earlyStopping],
-                                          		  class_weight=class_weight,
-                                          		  verbose=trn_params.train_verbose,
-                                          		  validation_data=(data[test_ids],
-                                                          		   target[test_ids]),
-                                          		  shuffle=True)
-
-                		#saving the model and trn in the respective training folder
-                		fileModelPCD = os.path.join(path, "{0}comp_model_PCD.h5".format(ipcd))
-                		fileTrnPCD = os.path.join(path, "{0}comp_trn_PCD.jbl".format(ipcd))
-
-                		my_model.save(fileModelPCD)
-
-                		self.best_desc['epochs'] = init_trn_desc.epoch
-                		self.best_desc['acc'] = init_trn_desc.history['acc']
-                		self.best_desc['loss'] = init_trn_desc.history['loss']
-                		self.best_desc['val_loss'] = init_trn_desc.history['val_loss']
-                		self.best_desc['val_acc'] = init_trn_desc.history['val_acc']
-
-                		joblib.dump([self.best_desc],fileTrnPCD,compress=9)
-
-
-                		self.models[ipcd] = my_model
-                		self.trn_descs[ipcd] = self.best_desc
-                		self.pcds[ipcd] = my_model.layers[2].get_weights()[0]
-
-				#condition for choose the best numbers of PCDs components
-
-				self.n_components = ipcd + 1
-
-				degree_matrix = self.get_degree_matrix().astype("double")
-
-                		mean_without_diagonal = degree_matrix.sum()/(degree_matrix.size - degree_matrix.diagonal().size)
-
-				#condition = degree_matrix[ipcd,:-1].mean()
-				print mean_without_diagonal
-				if mean_without_diagonal > 80:
-					break
-
-				ipcd+=1
-
-                		if trn_params.verbose:
-                    			print 'PCD %i - Train process is done, val_cost: %1.5f'%(ipcd+1,np.min(init_trn_desc.history['val_loss']))
-
-		return self
+	
 
 	def sort_components(self):
         	'''
