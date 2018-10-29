@@ -122,7 +122,7 @@ class NeuralClassificationTrnParams(TrnParams):
 
         param_str = param_str + '_metric_' + self.params['loss'] + '_loss'
         return param_str
-    
+
 class NeuralNetworkTrnParams(TrnParams):
     """
         Specialist NN Classification TrnParams
@@ -153,7 +153,7 @@ class NeuralNetworkTrnParams(TrnParams):
                  loss='mean_squared_error',
                  optmizerAlgorithm='SGD'
                 ):
-        
+
         self.__dict__['n_inits'] = n_inits
         self.__dict__['folds'] = n_folds
         self.__dict__['n_neurons'] = n_neurons
@@ -181,17 +181,17 @@ class NeuralNetworkTrnParams(TrnParams):
         self.__dict__['optmizerAlgorithm'] = optmizerAlgorithm
 
     def __next__(self):
-        for key, value in self.__dict__.items():   
+        for key, value in self.__dict__.items():
             yield key, value
         raise StopIteration
-    
+
     def __iter__(self):
         return self.__next__()
-    
+
     def getParamsStr(self):
         for key, value in self:
             print key, value
-    
+
     def get_params_str(self):
         param_str = ('%s_PCD_%i_inits_%i_folds_%i_neurons_%s_optmizer_%s_balanced_%s_norm_%i_epochs_%i_batch_size_%s_hidden_activation_%s_output_activation'%
                      (str(self.pcd),self.n_inits,self.folds,self.n_neurons,self.optmizerAlgorithm,str(self.weight),self.norm,self.n_epochs,self.batch_size,
@@ -201,6 +201,7 @@ class NeuralNetworkTrnParams(TrnParams):
 
         param_str = param_str + '_metric_' + self.loss + '_loss'
         return param_str
+
 
 class SpecialistClassificationTrnParams(TrnParams):
     """
@@ -231,7 +232,7 @@ class SpecialistClassificationTrnParams(TrnParams):
                  loss='mean_squared_error',
                  optmizerAlgorithm='SGD'
                 ):
-        
+
         self.__dict__['n_inits'] = n_inits
         self.__dict__['folds'] = n_folds
         self.__dict__['n_neurons'] = n_neurons
@@ -258,17 +259,17 @@ class SpecialistClassificationTrnParams(TrnParams):
         self.__dict__['optmizerAlgorithm'] = optmizerAlgorithm
 
     def __next__(self):
-        for key, value in self.__dict__.items():   
+        for key, value in self.__dict__.items():
             yield key, value
         raise StopIteration
-    
+
     def __iter__(self):
         return self.__next__()
-    
+
     def getParamsStr(self):
         for key, value in self:
             print key, value
-    
+
     def get_params_str(self):
         param_str = ('%i_inits_%i_folds_%i_neurons_%s_optmizer_%s_balanced_%s_norm_%i_epochs_%i_batch_size_%s_hidden_activation_%s_output_activation'%
                      (self.n_inits,self.folds,self.n_neurons,self.optmizerAlgorithm,str(self.weight),self.norm,self.n_epochs,self.batch_size,
