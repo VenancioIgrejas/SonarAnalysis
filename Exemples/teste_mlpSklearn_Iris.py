@@ -64,9 +64,7 @@ boost = AdaBoostClassifier(base_estimator=mlp,
                            algorithm= 'SAMME',
                            random_state=None)
 
-boost.fit(X_train,y_train)
-
-boost
-
+#boost.fit(X_train,y_train)
+mlp.fit(X_train,y_train)
 
 #print classification_report(output,y_test)
