@@ -4,13 +4,14 @@ import numpy as np
 import time
 from contextlib import contextmanager
 
-sys.path.insert(0, '/home/venancio/jupy-note')
+#sys.path.insert(0, '/home/venancio/jupy-note')
 
 from sklearn.datasets import load_iris
 
 import pandas as pd
 from sklearn.ensemble import AdaBoostClassifier
-from Functions.mlpClassification import MLPSKlearn
+from Functions.ensemble import AdaBoost
+from Functions.mlpClassification import MLPSKlearn,MLPKeras
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score,classification_report
 from sklearn.preprocessing import StandardScaler,OneHotEncoder,LabelEncoder
@@ -57,14 +58,30 @@ with timer('prepare data'):
 #     print pred
 #
 #Adaboosting
-mlp = MLPSKlearn()
-boost = AdaBoostClassifier(base_estimator=mlp,
-                           n_estimators=10,
+mlp = MLPKeras(hidden_layer_sizes=(100,),
+                 activation=('tanh','softmax'),
+                 optimize='adam',
+                 loss='mean_squared_error',
+                 n_init=2,
+                 batch_size=None,
+                 epoch=200,
+                 shuffle=True,
+                 random_state=None,
+                 verbose=1,
+                 early_stopping = False,
+                 save_best_model = True,
+                 monitor='acc',
+                 metrics=['acc'],
+                 validation_fraction=0.0,
+                 dir='./')
+
+boost = AdaBoost(base_estimator=mlp,
+                           n_estimators=2,
                            learning_rate=1,
-                           algorithm= 'SAMME',
+                           algorithm= 'SAMME.R',
                            random_state=None)
 
-#boost.fit(X_train,y_train)
-mlp.fit(X_train,y_train)
-
+boost.fit(X_train,y_train)
+#mlp.fit(X_train,y_train)
+est1 = boost.estimators_[0]
 #print classification_report(output,y_test)
