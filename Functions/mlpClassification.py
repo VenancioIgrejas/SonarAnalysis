@@ -10,6 +10,7 @@ from itertools import product, cycle
 from warnings import warn
 #import seaborn as sns
 
+
 import keras
 import numpy as np
 from keras import Sequential, Model
@@ -25,7 +26,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler,OneHotEncoder,LabelEncoder
 
 from Functions import TrainParameters
-from Functions.util import check_mount_dict,get_objects
+from Functions.util import check_mount_dict,get_objects,update_paramns
 
 from sklearn.base import BaseEstimator, is_classifier, clone
 from sklearn.base import MetaEstimatorMixin
@@ -38,29 +39,30 @@ from hep_ml.nnet import MLPMultiClassifier,_prepare_scaler
 class MLPKeras(BaseEstimator, ClassifierMixin):
     """docstring for MLPKeras."""
     def __init__(self,
-                  hidden_layer_sizes=(100,),
-                  activation=('tanh','softmax'),
-                  solver='adam',
-                  op_adam_kwargs=None,
-                  loss='mean_squared_error',
-                  max_init=1,
-                  batch_size=None,
-                  max_iter=200,
-                  shuffle=True,
-                  random_state=None,
-                  verbose=False,
-                  early_stopping = False,
-                  es_kwargs = None,
-                  save_best_model = False,
-                  mc_kwargs = None,
-                  metrics=['acc'],
-                  validation_fraction=0.0,
-                  dir='/.'):
+                 hidden_layer_sizes=(100,),
+                 activation=('tanh','softmax'),
+                 optimize='adam',
+                 lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False,
+                 loss='mean_squared_error',
+                 n_init=1,
+                 batch_size=None,
+                 epoch=200,
+                 shuffle=True,
+                 random_state=None,
+                 verbose=0,
+                 early_stopping = False,
+                 monitor='val_loss', min_delta=0, patience=0,
+                 mode='auto', baseline=None, restore_best_weights=False,
+                 save_best_model = False,
+                 save_weights_only=False, period=1,
+                 metrics=['acc'],
+                 validation_fraction=0.0,
+                 dir='./'):
 
         if len(hidden_layer_sizes) != 1:
             raise ValueError('only one hidden layer implemented')
 
-        if not solver in ['adam']:
+        if not optimize in ['adam']:
             raise ValueError('choose \'adam\' as optimizer ')
 
         self.model = None
@@ -68,14 +70,17 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
         if batch_size is 'auto':
             batch_size = None
 
+
+
+
         nn_params = {
                     'hidden_layer_sizes':hidden_layer_sizes,
                     'activation':activation,
-                    'optimize':solver,
+                    'optimize':optimize,
                     'batch_size':batch_size,
-                    'epoch':max_iter,
+                    'epoch':epoch,
                     'verbose':verbose,
-                    'n_init':max_init,
+                    'n_init':n_init,
                     'loss':loss,
                     'metrics':metrics
         }
@@ -85,29 +90,29 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                            'save_best_model':save_best_model
         }
 
-        def_op_adam_kwargs = {'lr':0.001,
-                          'beta_1':0.9,
-                          'beta_2':0.999,
-                          'epsilon':None,
-                          'decay':0.0,
-                          'amsgrad':False}
+        op_adam_kwargs = {'lr':lr,
+                          'beta_1':beta_1,
+                          'beta_2':beta_2,
+                          'epsilon':epsilon,
+                          'decay':decay,
+                          'amsgrad':amsgrad}
 
 
-        def_es_kwargs = {'monitor':'val_loss',
-                     'min_delta':0,
-                     'patience':0,
-                     'verbose':0,
-                     'mode':'auto',
-                     'baseline':None,
-                     'restore_best_weights':False}
+        es_kwargs = {'monitor':monitor,
+                     'min_delta':min_delta,
+                     'patience':patience,
+                     'verbose':verbose,
+                     'mode':mode,
+                     'baseline':baseline,
+                     'restore_best_weights':restore_best_weights}
 
-        def_mc_kwargs = {'filepath':dir,
-                     'monitor':'val_loss',
-                     'verbose':0,
+        mc_kwargs = {'filepath':dir+'model.h5',
+                     'monitor':monitor,
+                     'verbose':verbose,
                      'save_best_only':True,
-                     'save_weights_only':False,
-                     'mode':'auto',
-                     'period':1}
+                     'save_weights_only':save_weights_only,
+                     'mode':mode,
+                     'period':period}
 
         add_params = {
                      'shuffle':shuffle,
@@ -121,16 +126,32 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
         all_params.update(nn_params)
         all_params.update(add_params)
         all_params.update(callback_params)
+        all_params.update(op_adam_kwargs)
+        all_params.update(es_kwargs)
+        all_params.update(mc_kwargs)
 
         for  keys,values in all_params.items():
             self.__dict__[keys] = values
 
-        self.op_adam_kwargs = check_mount_dict(def_op_adam_kwargs,op_adam_kwargs)
-        self.es_kwargs = check_mount_dict(def_es_kwargs,es_kwargs)
-        self.mc_kwargs = check_mount_dict(def_mc_kwargs,mc_kwargs)
+        #self.op_adam_kwargs = check_mount_dict(def_op_adam_kwargs,op_adam_kwargs)
+        #self.es_kwargs = check_mount_dict(def_es_kwargs,es_kwargs)
+        #self.mc_kwargs = check_mount_dict(def_mc_kwargs,mc_kwargs)
+
+        self.op_adam_kwargs = op_adam_kwargs
+        self.es_kwargs = es_kwargs
+        self.mc_kwargs = mc_kwargs
 
 
 
+    def _check_pararms_change(self):
+        exception = ['save_best_only']
+        dic = self.get_params()
+        self.mc_kwargs = update_paramns(self.es_kwargs,dic,exception)
+        self.es_kwargs = update_paramns(self.es_kwargs,dic,exception)
+        self.op_adam_kwargs = update_paramns(self.op_adam_kwargs,dic,exception)
+        self.__dict__ = update_paramns(self.__dict__,dic,exception)
+
+        return None
     def _transform(self, X, y=None, fit=False,train_id=None):
         """Apply selected scaler or transformer to dataset
         (also this method adds a column filled with ones).
@@ -170,7 +191,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
         """
 
         if not y is None:
-            ohe = OneHotEncoder(sparse=False)
+            ohe = OneHotEncoder(sparse=False,categories='auto')
             sparce_y = ohe.fit_transform(pd.DataFrame(y,columns=['target']))
         else:
             return self._transform(X,y,fit,train_id)
@@ -180,20 +201,22 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
 
             self.classes_ = self._classes(y)
 
+            self._check_pararms_change()
+
             preproc_X,sparce_y = self._preprocess(X,y,fit=True,train_id=train_id)
 
-            for init in range(1):
+            for init in range(self.n_init):
 
                     callbacks_list = []
 
-                    print "[+] {0} of {1} inits".format(init+1,1)
+                    print "[+] {0} of {1} inits".format(init+1,self.n_init)
                     model = Sequential()
 
                     model.add(Dense(self.hidden_layer_sizes[0], input_dim=X.shape[1], activation=self.activation[0]))
 
                     model.add(Dense(len(self.classes_), activation=self.activation[1]))
 
-                    opt = getattr(keras.optimizers,'Adam')
+                    opt = getattr(keras.optimizers,self.optimize)
 
                     model.compile(loss=self.loss, optimizer=opt(**self.op_adam_kwargs), metrics=self.metrics)
 
@@ -260,12 +283,12 @@ class MLPSKlearn(MLPKeras):
     def __init__(self,
                   hidden_layer_sizes=(100,),
                   activation=('tanh','softmax'),
-                  solver='adam',
+                  optimize='adam',
                   op_adam_kwargs=None,
                   loss='mean_squared_error',
-                  max_init=1,
+                  n_init=1,
                   batch_size=None,
-                  max_iter=200,
+                  epoch=200,
                   shuffle=True,
                   random_state=None,
                   verbose=False,
@@ -275,13 +298,13 @@ class MLPSKlearn(MLPKeras):
                   mc_kwargs = None,
                   metrics=['acc'],
                   validation_fraction=0.0,
-                  dir='/.'):
+                  dir='./'):
 
         sup = super(MLPSKlearn,self)
         sup.__init__(hidden_layer_sizes=hidden_layer_sizes,
-                     activation=activation,solver=solver,op_adam_kwargs=op_adam_kwargs,
-                     loss=loss,
-                     batch_size=batch_size,max_iter=max_iter,
+                     activation=activation,optimize=optimize,op_adam_kwargs=op_adam_kwargs,
+                     loss=loss,epoch=epoch,
+                     batch_size=batch_size,n_init=n_init,
                      shuffle=shuffle,
                      random_state=random_state,verbose=verbose,
                      early_stopping=early_stopping,es_kwargs=es_kwargs,
