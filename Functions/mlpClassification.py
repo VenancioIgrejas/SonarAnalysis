@@ -26,7 +26,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler,OneHotEncoder,LabelEncoder
 
 from Functions import TrainParameters
-from Functions.util import check_mount_dict,get_objects,update_paramns,file_exist
+from Functions.util import check_mount_dict,get_objects,update_paramns,file_exist,best_file
 
 from sklearn.base import BaseEstimator, is_classifier, clone
 from sklearn.base import MetaEstimatorMixin
@@ -50,6 +50,8 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                  shuffle=True,
                  random_state=None,
                  verbose=0,
+                 train_log = False,
+                 append=False,
                  early_stopping = False,
                  monitor='val_loss', min_delta=0, patience=0,
                  mode='auto', baseline=None, restore_best_weights=False,
@@ -87,7 +89,8 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
 
         callback_params = {
                            'early_stopping':early_stopping,
-                           'save_best_model':save_best_model
+                           'save_best_model':save_best_model,
+                           'train_log':train_log,
         }
 
         op_adam_kwargs = {'lr':lr,
@@ -114,6 +117,11 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                      'mode':mode,
                      'period':period}
 
+        lg_kwargs = {'filename':dir+'log_train.csv',
+                     'separator':',',
+                     'append':append}
+
+
         add_params = {
                      'shuffle':shuffle,
                      'random_state':random_state,
@@ -129,6 +137,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
         all_params.append(op_adam_kwargs)
         all_params.append(es_kwargs)
         all_params.append(mc_kwargs)
+        all_params.append(lg_kwargs)
 
         self.para = all_params
         list_tmp = []
@@ -144,6 +153,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
         self.op_adam_kwargs = op_adam_kwargs
         self.es_kwargs = es_kwargs
         self.mc_kwargs = mc_kwargs
+        self.lg_kwargs = lg_kwargs
 
 
 
@@ -217,7 +227,9 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                 return self
 
 
-
+            best_loss = 999
+            model_files={}
+            log_files={}
             for init in range(self.n_init):
 
                     callbacks_list = []
@@ -239,31 +251,57 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                                                           self.es_kwargs))
 
                     if self.save_best_model:
+                        model_files[init] = self.get_params()['dir'] + 'model_init_{0}.h5'.format(init)
+                        self.mc_kwargs['filepath'] = model_files[init]
                         callbacks_list.append(get_objects(keras.callbacks,
                                                          'ModelCheckpoint',
                                                          self.mc_kwargs))
+
+                    if self.train_log:
+                        log_files[init] = self.get_params()['dir'] + 'log_train_init_{0}.cvs'.format(init)
+                        self.lg_kwargs['filename'] = log_files[init]
+                        callbacks_list.append(get_objects(keras.callbacks,
+                                                          'CSVLogger',
+                                                          self.lg_kwargs))
 
 
                     if train_id is None:
                         validation_data = None
                         x_data = preproc_X
                         y_sparse = sparce_y
+                        monitor = 'loss'
                     else:
+                        monitor = 'val_loss'
                         validation_data = (preproc_X[test_id],sparce_y[test_id])
                         x_data = preproc_X[train_id]
                         y_sparse = sparce_y[train_id]
 
-                    model.fit(x_data,y_sparse,
-                              epochs=self.epoch,
-                              batch_size=self.batch_size,
-                              callbacks=callbacks_list,
-                              validation_split=self.validation_fraction,
-                              validation_data=validation_data,
-                              sample_weight=sample_weight,
-                              verbose=self.verbose,
-                              shuffle=self.shuffle)
+                    init_trn_desc = model.fit(x_data,y_sparse,
+                                              epochs=self.epoch,
+                                              batch_size=self.batch_size,
+                                              callbacks=callbacks_list,
+                                              validation_split=self.validation_fraction,
+                                              validation_data=validation_data,
+                                              sample_weight=sample_weight,
+                                              verbose=self.verbose,
+                                              shuffle=self.shuffle)
 
-                    self.model = model
+                    print model_files
+                    if np.min(init_trn_desc.history[monitor]) < best_loss:
+                        best_init = init
+
+            if self.save_best_model:
+                self.mc_kwargs['filepath'] = best_file(path_files=model_files,
+                                                       best_keys=best_init,
+                                                       path_rename_file=self.get_params()['dir'] + 'model.h5')
+
+            if self.train_log:
+                self.lg_kwargs['filename'] = best_file(path_files=log_files,
+                                                   best_keys=best_init,
+                                                   path_rename_file=self.get_params()['dir'] + 'log_train.csv')
+
+            self.model = load_model(self.mc_kwargs['filepath'])
+
 
             return self
 
