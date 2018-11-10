@@ -31,7 +31,7 @@ class AdaBoost(AdaBoostClassifier):
         """
         estimator = clone(self.base_estimator_)
 
-        path = getattr(estimator,'dir') + '{0}_estimator'.format(len(self.estimators_))
+        path = getattr(estimator,'dir') + '{0}_estimator/'.format(len(self.estimators_))
 
         if not os.path.exists(path):
             os.makedirs(path)

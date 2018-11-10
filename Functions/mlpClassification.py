@@ -26,7 +26,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler,OneHotEncoder,LabelEncoder
 
 from Functions import TrainParameters
-from Functions.util import check_mount_dict,get_objects,update_paramns
+from Functions.util import check_mount_dict,get_objects,update_paramns,file_exist
 
 from sklearn.base import BaseEstimator, is_classifier, clone
 from sklearn.base import MetaEstimatorMixin
@@ -122,16 +122,20 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
         }
 
 
-        all_params = {}
-        all_params.update(nn_params)
-        all_params.update(add_params)
-        all_params.update(callback_params)
-        all_params.update(op_adam_kwargs)
-        all_params.update(es_kwargs)
-        all_params.update(mc_kwargs)
+        all_params = []
+        all_params.append(nn_params)
+        all_params.append(add_params)
+        all_params.append(callback_params)
+        all_params.append(op_adam_kwargs)
+        all_params.append(es_kwargs)
+        all_params.append(mc_kwargs)
 
-        for  keys,values in all_params.items():
-            self.__dict__[keys] = values
+        self.para = all_params
+        list_tmp = []
+        for each_dict in all_params:
+            list_tmp = list_tmp + each_dict.items()
+
+        self.__dict__ = dict(list_tmp)
 
         #self.op_adam_kwargs = check_mount_dict(def_op_adam_kwargs,op_adam_kwargs)
         #self.es_kwargs = check_mount_dict(def_es_kwargs,es_kwargs)
@@ -144,9 +148,9 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
 
 
     def _check_pararms_change(self):
-        exception = ['save_best_only']
+        exception = []
         dic = self.get_params()
-        self.mc_kwargs = update_paramns(self.es_kwargs,dic,exception)
+        self.mc_kwargs = update_paramns(self.mc_kwargs,dic,exception)
         self.es_kwargs = update_paramns(self.es_kwargs,dic,exception)
         self.op_adam_kwargs = update_paramns(self.op_adam_kwargs,dic,exception)
         self.__dict__ = update_paramns(self.__dict__,dic,exception)
@@ -204,6 +208,15 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
             self._check_pararms_change()
 
             preproc_X,sparce_y = self._preprocess(X,y,fit=True,train_id=train_id)
+
+            self.mc_kwargs['filepath'] = self.get_params()['dir'] + 'model.h5'
+
+            if file_exist(self.mc_kwargs['filepath']):
+                print "model already exists in {0} file".format(self.mc_kwargs['filepath'])
+                self.model = load_model(self.mc_kwargs['filepath'])
+                return self
+
+
 
             for init in range(self.n_init):
 
