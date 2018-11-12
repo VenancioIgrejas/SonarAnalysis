@@ -1,7 +1,86 @@
 import os
+import sys
+import io
+import time
+import numpy as np
+
+import pandas as pd
+
+from scipy.io import loadmat
+
+from sklearn.externals import joblib
 from sklearn.preprocessing import LabelEncoder
+
+from keras.utils import np_utils
+
 from envConfig import CONFIG
-from Functions.util import inverse_dict
+from Functions.util import inverse_dict,pydata
+
+
+class MountData(object):
+    """docstring for MountData."""
+    def __init__(self,data_file=None,database='24classes',number_of_classes = 24 ,n_pts_fft=1024, decimation_rate=3,
+                 spectrum_bins_left=400,class_label=None):
+        #super(MountData, self).__init__()
+
+        self.DATA_PATH = CONFIG['OUTPUTDATAPATH']
+
+        self.database = database
+        self.number_of_classes = number_of_classes
+        self.n_pts_fft = n_pts_fft
+        self.decimation_rate = decimation_rate
+        self.spectrum_bins_left = spectrum_bins_left
+
+        classes = []
+
+        for num in range(number_of_classes):
+            data_path = os.path.join(self.DATA_PATH,self.database,'Class{0}'.format(num+1))
+            self.file_lofar = "lofar_data_file_fft_%i_decimation_%i_spectrum_left_%i"%(self.n_pts_fft,
+                                                                                    self.decimation_rate,
+                                                                                    self.spectrum_bins_left)
+
+            classes.append(loadmat(os.path.join(data_path,self.file_lofar)))
+
+        #treating the data
+        alldata={}
+        for i in range(number_of_classes):
+            data = [pydata(classes[i],eachCell) for eachCell in range(classes[i]['lofar_data'].shape[1])]
+            alldata[i] = pd.concat(data)
+
+
+        self.data = pd.concat([pd.DataFrame(alldata[key]) for key in range(number_of_classes)]).values
+        #creating trgt of data
+        eachtrgt = []
+        value = 0
+        for key_data in alldata:
+            numRow = alldata[key_data].shape[0]
+            for i in range(numRow):
+                eachtrgt.append(value)
+            value = value +1
+
+        trgt = np.array(eachtrgt)
+
+        self.trgt = trgt
+
+        #creating labels classes
+        if  class_label is None:
+            self.class_label = ['Class{0:02d}'.format(i+1) for i in range(number_of_classes)]
+        else:
+            self.class_label = class_label
+
+    def to_save(self,path=None,type_file='jbl'):
+        if not type_file in ['jbl']:
+            raise ValueError("only 'jbl' extensions")
+
+        if path is None:
+            file_path = os.path.join(self.DATA_PATH,self.database,self.file_lofar + '.' + type_file)
+            print "save the dataset in {0} file".format(file_path)
+            joblib.dump([self.data,self.trgt,self.class_label],file_path,compress=9)
+
+        else:
+            print "save the dataset in {0} file".format(path + '.' + type_file)
+            joblib.dump([self.data,self.trgt,self.class_label],path + '.' + type_file,compress=9)
+
 
 class LoadData(object):
     """ Load Dataset for analysis
@@ -25,12 +104,18 @@ class LoadData(object):
                  spectrum_bins_left=400):
         #super(LoadData, self).__init__()
 
+        m_time = time.time()
+
         self.database = database
+        self.n_pts_fft = n_pts_fft
+        self.decimation_rate = decimation_rate
+        self.spectrum_bins_left = spectrum_bins_left
+
 
         self.DATA_PATH = CONFIG['OUTPUTDATAPATH']
 
         if data_file is None:
-            data_file = "lofar_data_withoutNaN_file_fft_%i_decimation_%i_spectrum_left_%i.jbl"%(self.n_pts_fft,
+            data_file = "lofar_data_file_fft_%i_decimation_%i_spectrum_left_%i.jbl"%(self.n_pts_fft,
                                                                                     self.decimation_rate,
                                                                                     self.spectrum_bins_left)
 
@@ -55,7 +140,8 @@ class LoadData(object):
             self.PCD_data = data
             self.all_trgt = trgt
 
-            self.class_label = class_labels
+
+            self.class_labels = class_labels
 
     def infoEachData(self,class_specific):
         index_class = self.getClassLabels().index(class_specific)
@@ -72,15 +158,15 @@ class LoadData(object):
         print "end of class analysis"
 
     def getData(self):
-        return [self.all_data, self.all_trgt, self.trgt_sparse]
+        return [self.all_data, self.all_trgt]
 
     def getClassLabels(self):
         return self.class_labels
 
     def setRangeClass(self,class_range):
 
-        import pandas as pd
-
+        if not isinstance(class_range,(list,np.array)):
+            raise ValueError("type of classes is {0} but expected list type".format(type(class_range)))
 
         list_class_label = [self.class_labels[iclass] for iclass in class_range]
         list_class_events = [pd.DataFrame(self.all_data[self.all_trgt==iclass,:]) for iclass in class_range]
@@ -92,7 +178,7 @@ class LoadData(object):
 
         self.class_labels = list_class_label
 
-    def mapClasses(map_class):
+    def mapClasses(self,map_class):
         """ map the class labels of dataset in new class labels
             changing the target of dataset according to new labels
         ----------
@@ -108,10 +194,16 @@ class LoadData(object):
         if not isinstance(map_class,dict):
             raise ValueError("{0} isn't dict type".format(type(map_class)))
 
+        if not isinstance(self.all_trgt,list):
+            self.all_trgt = self.all_trgt.tolist()
+
         le = LabelEncoder()
         le.fit(self.class_labels)
 
-        y_label = le.inverse_transform(self.all_trgt)
+        #if not le.classes_ == self.class_labels:
+        #    raise ValueError("classes labels need to be sorted")
+
+        y_label = le.inverse_transform(map(int,self.all_trgt))
 
         inv_map_class = inverse_dict(map_class)
 
@@ -121,6 +213,6 @@ class LoadData(object):
         le_new = LabelEncoder()
 
         self.all_trgt = le_new.fit_transform(y_new_label)
-        self.class_labels = le_new.classes_
+        self.class_labels = le_new.classes_.tolist()
 
         return self
