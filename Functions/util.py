@@ -1,6 +1,8 @@
 import time
 import gc
 import os
+import numpy as np
+import pandas as pd
 from contextlib import contextmanager
 
 @contextmanager
@@ -68,7 +70,7 @@ def best_file(path_files,choose_key,path_rename_file=None):
 
     return path_files[choose_key]
 
-def invert_dict(dicto):
+def inverse_dict(dicto):
     """ invert key,value in dictionary [{key:value} -> {value:key}]
     """
     tmp = []
@@ -80,3 +82,13 @@ def invert_dict(dicto):
             tmp.append((values,key))
 
     return dict(tmp)
+
+#function that transform some columm with data of .mat file in DataFrame
+def pydata(mat,col=0,):
+    mdata = mat['lofar_data']
+    data1 = mdata[0][col]
+    dataframe = pd.DataFrame(np.array(data1).transpose())#,dtype=np.int64)
+    logData = dataframe.isnull()
+    listNaN = logData.index[logData[1] == True].tolist()
+    dataframeWithoutNaN = dataframe.drop(dataframe.index[listNaN])
+    return dataframeWithoutNaN
