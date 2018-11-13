@@ -205,7 +205,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
         """
 
         if not y is None:
-            ohe = OneHotEncoder(sparse=False,categories='auto')
+            ohe = OneHotEncoder(sparse=False)#,categories='auto')
             sparce_y = ohe.fit_transform(pd.DataFrame(y,columns=['target']))
         else:
             return self._transform(X,y,fit,train_id)
@@ -219,7 +219,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
 
             preproc_X,sparce_y = self._preprocess(X,y,fit=True,train_id=train_id)
 
-            self.mc_kwargs['filepath'] = self.get_params()['dir'] + 'model.h5'
+            self.mc_kwargs['filepath'] = os.path.join(self.get_params()['dir'],'model.h5')
 
             if file_exist(self.mc_kwargs['filepath']):
                 print "model already exists in {0} file".format(self.mc_kwargs['filepath'])
@@ -251,14 +251,14 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                                                           self.es_kwargs))
 
                     if self.save_best_model:
-                        model_files[init] = self.get_params()['dir'] + 'model_init_{0}.h5'.format(init)
+                        model_files[init] = os.path.join(self.get_params()['dir'],'model_init_{0}.h5'.format(init))
                         self.mc_kwargs['filepath'] = model_files[init]
                         callbacks_list.append(get_objects(keras.callbacks,
                                                          'ModelCheckpoint',
                                                          self.mc_kwargs))
 
                     if self.train_log:
-                        log_files[init] = self.get_params()['dir'] + 'log_train_init_{0}.cvs'.format(init)
+                        log_files[init] = os.path.join(self.get_params()['dir'],'log_train_init_{0}.cvs'.format(init))
                         self.lg_kwargs['filename'] = log_files[init]
                         callbacks_list.append(get_objects(keras.callbacks,
                                                           'CSVLogger',
@@ -269,12 +269,14 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                         validation_data = None
                         x_data = preproc_X
                         y_sparse = sparce_y
-                        monitor = 'loss'
+                        monitor = 'loss',
+                        sample_weight_tmp = sample_weight
                     else:
                         monitor = 'val_loss'
                         validation_data = (preproc_X[test_id],sparce_y[test_id])
                         x_data = preproc_X[train_id]
                         y_sparse = sparce_y[train_id]
+                        sample_weight_tmp = sample_weight[train_id]
 
                     init_trn_desc = model.fit(x_data,y_sparse,
                                               epochs=self.epoch,
@@ -282,7 +284,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                                               callbacks=callbacks_list,
                                               validation_split=self.validation_fraction,
                                               validation_data=validation_data,
-                                              sample_weight=sample_weight,
+                                              sample_weight=sample_weight_tmp,
                                               verbose=self.verbose,
                                               shuffle=self.shuffle)
 
@@ -292,26 +294,29 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
 
             if self.save_best_model:
                 self.mc_kwargs['filepath'] = best_file(path_files=model_files,
-                                                       best_keys=best_init,
-                                                       path_rename_file=self.get_params()['dir'] + 'model.h5')
+                                                       choose_key=best_init,
+                                                       path_rename_file=os.path.join(self.get_params()['dir'],'model.h5'))
 
             if self.train_log:
                 self.lg_kwargs['filename'] = best_file(path_files=log_files,
-                                                   best_keys=best_init,
-                                                   path_rename_file=self.get_params()['dir'] + 'log_train.csv')
+                                                       choose_key=best_init,
+                                                       path_rename_file=os.path.join(self.get_params()['dir'],'log_train.csv'))
 
             self.model = load_model(self.mc_kwargs['filepath'])
 
 
             return self
 
-    def predict(self,X,y=None):
+    def predict(self,X,y=None,predict='classes'):
 
         if self.model is None:
             raise Exception('use \'fit\' function first')
 
         preproc_X = self._preprocess(X)
-        return self.model.predict_classes(X)
+        if predict is 'sparce':
+            return self.model.predict(X)
+        else:
+            return self.model.predict_classes(X)
 
     def predict_proba(self,X):
 
