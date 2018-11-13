@@ -21,7 +21,7 @@ class AdaBoost(AdaBoostClassifier):
                                        algorithm=algorithm,
                                        random_state=random_state)
         self.le_=None
-        self.kwarg = {}
+        self.fit_kwarg = {}
 
 
     def _make_estimator(self, append=True, random_state=None):
@@ -31,7 +31,7 @@ class AdaBoost(AdaBoostClassifier):
         """
         estimator = clone(self.base_estimator_)
 
-        path = getattr(estimator,'dir') + '{0}_estimator/'.format(len(self.estimators_))
+        path = getattr(estimator,'dir') + '{0:02d}_estimator/'.format(len(self.estimators_))
 
         if not os.path.exists(path):
             os.makedirs(path)
@@ -46,17 +46,18 @@ class AdaBoost(AdaBoostClassifier):
 
         return estimator
 
-    def set_fit_param(**kwarg):
-        self.kwarg = kwarg 
+    def set_fit_param(self,**kwarg):
+        self.fit_kwarg = kwarg
+        return self
 
     def _boost_discrete(self, iboost, X, y, sample_weight, random_state):
         """Implement a single boost using the SAMME discrete algorithm."""
         estimator = self._make_estimator(random_state=random_state)
+        # beginning of altered part of the code by me
+        fit_kwarg = self.fit_kwarg
+        estimator.fit(X, y, sample_weight=sample_weight,**fit_kwarg)
 
-        kwarg = self.fit_kwarg
-
-        estimator.fit(X, y, sample_weight=sample_weight,**kwarg)
-
+        # end of altered part of the code by me
         y_predict = estimator.predict(X)
 
         if iboost == 0:
