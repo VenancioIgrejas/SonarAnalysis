@@ -92,3 +92,10 @@ def pydata(mat,col=0,):
     listNaN = logData.index[logData[1] == True].tolist()
     dataframeWithoutNaN = dataframe.drop(dataframe.index[listNaN])
     return dataframeWithoutNaN
+
+def to_json(data,filename):
+    """save data(dict) in json format"""
+    import json
+    with open(filename, 'w') as outfile:
+        json.dump(data, outfile)
+    print "[+] save {0} file finished".format(filename)
