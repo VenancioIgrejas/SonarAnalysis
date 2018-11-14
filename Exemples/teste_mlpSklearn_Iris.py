@@ -10,8 +10,11 @@ from sklearn.datasets import load_iris
 
 import pandas as pd
 from sklearn.ensemble import AdaBoostClassifier
+
 from Functions.ensemble import AdaBoost
 from Functions.mlpClassification import MLPSKlearn,MLPKeras
+from Functions.preprocessing import CrossValidation
+
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score,classification_report
 from sklearn.preprocessing import StandardScaler,OneHotEncoder,LabelEncoder
@@ -35,9 +38,10 @@ with timer('load data'):
     print "iris: target->{0} \n feactures->{1}\n".format(iris.target,iris.feature_names)
     print df.head()
 
+
 #prepare data (no reason)
-with timer('prepare data'):
-    X_train, X_test, y_train, y_test = train_test_split(df_data.values,df_trgt.values,test_size=0.2)
+#with timer('prepare data'):
+#    X_train, X_test, y_train, y_test = train_test_split(df_data.values,df_trgt.values,test_size=0.2)
 
     # scaler = StandardScaler().fit(X_train)
     # preproc_data_train = scaler.transform(X_train)
@@ -76,13 +80,18 @@ mlp = MLPKeras(hidden_layer_sizes=(100,),
                  validation_fraction=0.0,
                  dir='./')
 
+cv = CrossValidation(mlp,df_data.values,df_trgt.values)
+
+
 boost = AdaBoost(base_estimator=mlp,
                            n_estimators=2,
                            learning_rate=1,
                            algorithm= 'SAMME.R',
                            random_state=None)
 
-boost.fit(X_train,y_train)
+#boost.fit(X_train,y_train)
 #mlp.fit(X_train,y_train)
-est1 = boost.estimators_[0]
+cv.predict_ifold(ifold=0)
+print cv.predict_ifold(ifold=0)
+#est1 = boost.estimators_[0]
 #print classification_report(output,y_test)
