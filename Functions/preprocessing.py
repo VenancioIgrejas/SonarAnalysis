@@ -1,4 +1,5 @@
 import os
+from joblib import Parallel, delayed
 from Functions.TrainParameters import ClassificationFolds
 
 
@@ -10,6 +11,7 @@ class CrossValidation(object):
         self.CVO = ClassificationFolds(dir,n_folds,y,dev,verbose)
         self.dir = dir
         self.data = X
+        self.n_folds = n_folds
         self.trgt = y
         self.estimator = estimator
 
@@ -44,6 +46,18 @@ class CrossValidation(object):
             return self.estimator.predict(self.data[test_id])
         if mode is 'all':
             return self.estimator.predict(self.data)
+
+    def fit(self,n_jobs=1,folds=None,sample_weight=None):
+
+        if folds is None:
+            folds = range(self.n_folds)
+
+        if not isinstance(folds,list):
+            raise ValueError("expected list type of variable folds, but is {0} type".format(type(folds)))
+
+        Parallel(n_jobs=n_jobs)(
+                                delayed(self.fit_ifold)(ifolds,sample_weight)
+                                for ifolds in folds)
 
     def score_ifold(self,ifold=0,mode='test',predict='classes'):
 
