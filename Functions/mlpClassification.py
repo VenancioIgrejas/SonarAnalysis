@@ -269,7 +269,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                         validation_data = None
                         x_data = preproc_X
                         y_sparse = sparce_y
-                        monitor = 'loss',
+                        monitor = 'loss'
                         sample_weight_tmp = sample_weight
                     else:
                         monitor = 'val_loss'
