@@ -21,6 +21,7 @@ class AdaBoost(AdaBoostClassifier):
                                        algorithm=algorithm,
                                        random_state=random_state)
         self.le_=None
+        self.n_est = 0
         self.fit_kwarg = {}
 
 
@@ -30,8 +31,10 @@ class AdaBoost(AdaBoostClassifier):
         sub-estimators.
         """
         estimator = clone(self.base_estimator_)
-        
-        path = getattr(estimator,'dir') + '{0:02d}_estimator/'.format(len(self.estimators_))
+
+        path = getattr(estimator,'dir') + '{0:02d}_estimator/'.format(self.n_est)
+
+        self.n_est = self.n_est+1
 
         if not os.path.exists(path):
             os.makedirs(path)
