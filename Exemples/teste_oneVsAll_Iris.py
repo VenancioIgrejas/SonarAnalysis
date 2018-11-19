@@ -11,11 +11,12 @@ from sklearn.datasets import load_iris
 import pandas as pd
 from sklearn.ensemble import AdaBoostClassifier
 
-from Functions.ensemble import AdaBoost
+from Functions.ensemble import AdaBoost,SpecialistClass
 from Functions.mlpClassification import MLPSKlearn,MLPKeras
-from Functions.preprocessing import CrossValidation,CVEnsemble
+from Functions.preprocessing import CrossValidation
 
 from sklearn.model_selection import train_test_split
+from sklearn.multiclass import OneVsRestClassifier
 from sklearn.metrics import accuracy_score,classification_report
 from sklearn.preprocessing import StandardScaler,OneHotEncoder,LabelEncoder
 
@@ -41,7 +42,7 @@ with timer('load data'):
 
 #prepare data (no reason)
 #with timer('prepare data'):
-#    X_train, X_test, y_train, y_test = train_test_split(df_data.values,df_trgt.values,test_size=0.2)
+X_train, X_test, y_train, y_test = train_test_split(df_data.values,df_trgt.values,test_size=0.2)
 
     # scaler = StandardScaler().fit(X_train)
     # preproc_data_train = scaler.transform(X_train)
@@ -80,21 +81,16 @@ mlp = MLPKeras(hidden_layer_sizes=(100,),
                  validation_fraction=0.0,
                  dir='./')
 
+
+spec = SpecialistClass(mlp)
+
 cv = CrossValidation(mlp,df_data.values,df_trgt.values)
 
 
 boost = AdaBoost(base_estimator=mlp,
-                           n_estimators=6,
+                           n_estimators=2,
                            learning_rate=1,
                            algorithm= 'SAMME.R',
                            random_state=None)
 
-cve = CVEnsemble(boost,df_data.values,df_trgt.values)
-
-#boost.fit(X_train,y_train)
-#mlp.fit(X_train,y_train)
-cve.fit_ifold()
-cve.predict_ifold(ifold=0)
-print cve.predict_ifold(ifold=0)
-#est1 = boost.estimators_[0]
-#print classification_report(output,y_test)
+spec.fit(X_train,y_train)
