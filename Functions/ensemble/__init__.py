@@ -1,3 +1,4 @@
 from .weight_boosting import AdaBoost
-
-__all__ = ["AdaBoost"]
+from .multiclass import SpecialistClass
+__all__ = ["AdaBoost",
+           "SpecialistClass"]
