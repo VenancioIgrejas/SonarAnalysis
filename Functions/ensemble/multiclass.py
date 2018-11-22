@@ -4,7 +4,7 @@ import os
 from sklearn.base import clone
 from sklearn.preprocessing import LabelBinarizer
 from sklearn.multiclass import OneVsRestClassifier,_fit_binary,_ConstantPredictor
-from sklearn.utils import Parallel,delayed
+from joblib import Parallel, delayed
 
 def _fit_binary(estimator, X, y,selfClass, classes=None):
     """Fit a single binary estimator."""

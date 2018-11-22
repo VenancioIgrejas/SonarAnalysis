@@ -20,6 +20,7 @@ from keras.models import load_model
 
 from tensorflow import set_random_seed
 
+from sklearn.utils.class_weight import compute_class_weight
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.model_selection._search import BaseSearchCV, ParameterGrid, _check_param_grid
 from sklearn.pipeline import Pipeline
@@ -33,6 +34,16 @@ from sklearn.base import MetaEstimatorMixin
 
 from hep_ml.nnet import MLPMultiClassifier,_prepare_scaler
 
+
+
+def _check_sparce(y_parse,output_activation):
+    if not output_activation in ['tanh']:
+        if  sum(np.unique(y_parse)) in [1]:
+            return y_parse
+        else:
+            raise ValueError("target sparse need contain only 0 and 1")
+
+    return np.vstack(map(lambda x:2*x-1,y_parse)) # transform y_sparce in 1 and -1 target
 
 
 
@@ -52,6 +63,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                  verbose=0,
                  train_log = False,
                  append=False,
+                 class_weight = False,
                  early_stopping = False,
                  monitor='val_loss', min_delta=0, patience=0,
                  mode='auto', baseline=None, restore_best_weights=False,
@@ -66,8 +78,6 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
 
         if not optimize in ['adam']:
             raise ValueError('choose \'adam\' as optimizer ')
-
-        self.model = None
 
         if batch_size is 'auto':
             batch_size = None
@@ -122,8 +132,10 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                      'append':append}
 
 
-        add_params = {
+        add_params = {'value_class_weight':None,
+                     'model':None,
                      'shuffle':shuffle,
+                     'class_weight':class_weight,
                      'random_state':random_state,
                      'validation_fraction':validation_fraction,
                      'dir':dir
@@ -166,6 +178,19 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
         self.__dict__ = update_paramns(self.__dict__,dic,exception)
 
         return None
+
+    def set_class_weight(self,function,y,**kwarg):
+        self.value_class_weight = function(y,**kwarg)
+        return self
+
+    def _class_weight(self,y,class_weight='balanced'):
+        if self.class_weight:
+            return dict(zip(
+                           np.unique(y),compute_class_weight(
+                           class_weight=class_weight,classes=np.unique(y),y=y)))
+
+        return self.value_class_weight
+
     def _transform(self, X, y=None, fit=False,train_id=None):
         """Apply selected scaler or transformer to dataset
         (also this method adds a column filled with ones).
@@ -219,6 +244,8 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
 
             preproc_X,sparce_y = self._preprocess(X,y,fit=True,train_id=train_id)
 
+            sparce_y = _check_sparce(sparce_y,self.activation[1])
+
             self.mc_kwargs['filepath'] = os.path.join(self.get_params()['dir'],'model.h5')
 
             if file_exist(self.mc_kwargs['filepath']):
@@ -258,7 +285,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                                                          self.mc_kwargs))
 
                     if self.train_log:
-                        log_files[init] = os.path.join(self.get_params()['dir'],'log_train_init_{0}.cvs'.format(init))
+                        log_files[init] = os.path.join(self.get_params()['dir'],'log_train_init_{0}.csv'.format(init))
                         self.lg_kwargs['filename'] = log_files[init]
                         callbacks_list.append(get_objects(keras.callbacks,
                                                           'CSVLogger',
@@ -269,6 +296,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                         validation_data = None
                         x_data = preproc_X
                         y_sparse = sparce_y
+                        y_fit = y
                         monitor = 'loss'
                         sample_weight_tmp = sample_weight
                     else:
@@ -276,7 +304,12 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                         validation_data = (preproc_X[test_id],sparce_y[test_id])
                         x_data = preproc_X[train_id]
                         y_sparse = sparce_y[train_id]
-                        sample_weight_tmp = sample_weight[train_id]
+                        y_fit = y[train_id]
+                        if sample_weight is None:
+                            sample_weight_tmp = sample_weight
+                        else:
+                            sample_weight_tmp = sample_weight[train_id]
+
 
                     init_trn_desc = model.fit(x_data,y_sparse,
                                               epochs=self.epoch,
@@ -284,6 +317,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                                               callbacks=callbacks_list,
                                               validation_split=self.validation_fraction,
                                               validation_data=validation_data,
+                                              class_weight=self._class_weight(y_fit),
                                               sample_weight=sample_weight_tmp,
                                               verbose=self.verbose,
                                               shuffle=self.shuffle)

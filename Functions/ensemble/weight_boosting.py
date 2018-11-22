@@ -136,3 +136,10 @@ class AdaBoost(AdaBoostClassifier):
         maj = self.le_.inverse_transform(maj)
 
         return maj
+
+    def predict(self,X,mode='majory'):
+
+        if mode is 'majory':
+            return self.predict_maj(X)
+
+        raise ValueError("mode variable recive {0} but expected 'majory' ".format(mode))
