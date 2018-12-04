@@ -20,7 +20,7 @@ class AdaBoost(AdaBoostClassifier):
                                        learning_rate=learning_rate,
                                        algorithm=algorithm,
                                        random_state=random_state)
-        self.le_=None
+        self.le_ = None
         self.n_est = 0
         self.fit_kwarg = {}
 
@@ -111,7 +111,7 @@ class AdaBoost(AdaBoostClassifier):
     def _predict_mjvt(self,X):
         """Collect results from clf.predict calls. """
         return np.asarray([clf.predict(X) for clf in self.estimators_]).T
-
+    
     def predict_maj(self,X):
         """ Predict class labels for X using majory voting.
         Parameters
@@ -132,7 +132,7 @@ class AdaBoost(AdaBoostClassifier):
         maj = np.apply_along_axis(lambda x: np.argmax(
                                         np.bincount(x)),
                                         axis=1,arr=predictions)
-
+        return maj
         maj = self.le_.inverse_transform(maj)
 
         return maj

@@ -301,7 +301,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                         sample_weight_tmp = sample_weight
                     else:
                         monitor = 'val_loss'
-                        validation_data = (preproc_X[test_id],sparce_y[test_id])
+                        validation_data = (preproc_X[test_id],sparce_y[test_id],sample_weight[test_id])
                         x_data = preproc_X[train_id]
                         y_sparse = sparce_y[train_id]
                         y_fit = y[train_id]

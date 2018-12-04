@@ -67,6 +67,17 @@ class CrossValidation(object):
             return self.estimator.score(self.data[test_id])
         if mode is 'all':
             return self.estimator.score(self.data)
+ 
+    def target_true(self, ifold=0, mode='test'):
+
+        train_id, test_id = self.CVO[ifold]
+
+        if mode is 'test':
+            return self.trgt[test_id]
+
+        if mode is 'all':
+            return self.trgt
+
 
 class CVEnsemble(CrossValidation):
     """docstring for CVEnsemble."""
@@ -79,7 +90,7 @@ class CVEnsemble(CrossValidation):
 
         folder = self.get_folder(ifold)
 
-        params = {'dir':folder}
+        params = {'dir': folder}
         trn_params = {'train_id':train_id,
                       'test_id':test_id}
 
