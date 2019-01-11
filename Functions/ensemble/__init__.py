@@ -1,4 +1,6 @@
 from .weight_boosting import AdaBoost
-from .multiclass import SpecialistClass
+from .multiclass import SpecialistClass,HierarqNet
+
 __all__ = ["AdaBoost",
-           "SpecialistClass"]
+           "SpecialistClass",
+           "HierarqNet"]

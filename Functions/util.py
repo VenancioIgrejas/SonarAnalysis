@@ -99,3 +99,35 @@ def to_json(data,filename):
     with open(filename, 'w') as outfile:
         json.dump(data, outfile)
     print "[+] save {0} file finished".format(filename)
+
+def _check_dim(array1, array2):
+    if (np.ndim(array1) != np.ndim(array2)) or (array1.shape[1] != array2.shape[1]):
+        raise Exception("%s and %s didn't have the same dimension - %s and %s"%(
+        str(type(array1)),str(type(array2)),str(array1.shape),str(array2.shape)))
+
+    return True
+
+def run_once(f):
+    def wrapper(*args, **kwargs):
+        if not wrapper.has_run:
+            wrapper.has_run = True
+            return f(*args, **kwargs)
+    wrapper.has_run = False
+    return wrapper
+
+def rm_permutation_tuple(pair_tuple):
+    """remove permution values in list of pair tuple
+        ex: [(1,1), (1,2), (2,1)] -> [(1,1), (1,2)]
+    """
+
+    if not type(pair_tuple) is list:
+        raise ValueError("type of argument need to be list,"
+        "istead received {0} type".format(type(pair_tuple)))
+
+    pair_tuple_tmp = pair_tuple
+    for irow, icolumn in pair_tuple_tmp:
+        if irow != icolumn:
+            if (icolumn,irow) in pair_tuple:
+                pair_tuple.remove((icolumn,irow))
+
+    return pair_tuple

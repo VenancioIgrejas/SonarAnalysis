@@ -13,10 +13,13 @@ from warnings import warn
 
 import keras
 import numpy as np
+
+
 from keras import Sequential, Model
 from keras.layers import Dense, Activation
 from keras.callbacks import ModelCheckpoint
 from keras.models import load_model
+from keras.utils import np_utils
 
 from tensorflow import set_random_seed
 
@@ -32,7 +35,6 @@ from Functions.util import check_mount_dict,get_objects,update_paramns,file_exis
 from sklearn.base import BaseEstimator, is_classifier, clone
 from sklearn.base import MetaEstimatorMixin
 
-from hep_ml.nnet import MLPMultiClassifier,_prepare_scaler
 
 
 
@@ -70,6 +72,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                  save_best_model = False,
                  save_weights_only=False, period=1,
                  metrics=['acc'],
+                 validation_id = (None,None),
                  validation_fraction=0.0,
                  dir='./'):
 
@@ -137,6 +140,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                      'shuffle':shuffle,
                      'class_weight':class_weight,
                      'random_state':random_state,
+                     'validation_id':validation_id,
                      'validation_fraction':validation_fraction,
                      'dir':dir
         }
@@ -204,7 +208,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
         X = np.array(X, dtype=float)
 
         if fit:
-            self.scaler_ = _prepare_scaler('standard')
+            self.scaler_ = StandardScaler()
             if not train_id is None:
                 self.scaler_.fit(X[train_id], y)
             else:
@@ -230,13 +234,19 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
         """
 
         if not y is None:
-            ohe = OneHotEncoder(sparse=False)#,categories='auto')
-            sparce_y = ohe.fit_transform(pd.DataFrame(y,columns=['target']))
+            #ohe = OneHotEncoder(sparse=False)#,categories='auto')
+            #sparce_y = ohe.fit_transform(pd.DataFrame(y,columns=['target']))
+            enc = LabelEncoder()
+            enc_y = enc.fit_transform(y)
+            sparce_y = np_utils.to_categorical(enc_y)
+
         else:
             return self._transform(X,y,fit,train_id)
         return self._transform(X,y,fit,train_id),sparce_y
 
-    def fit(self,X,y,train_id=None,test_id=None,sample_weight=None):
+    def fit(self, X, y, sample_weight=None):
+
+            train_id, test_id = self.validation_id
 
             self.classes_ = self._classes(y)
 
@@ -246,7 +256,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
 
             sparce_y = _check_sparce(sparce_y,self.activation[1])
 
-            self.mc_kwargs['filepath'] = os.path.join(self.get_params()['dir'],'model.h5')
+            self.mc_kwargs['filepath'] = os.path.join(self.get_params()['dir'],'best_model.h5')
 
             if file_exist(self.mc_kwargs['filepath']):
                 print "model already exists in {0} file".format(self.mc_kwargs['filepath'])
@@ -254,7 +264,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                 return self
 
 
-            best_loss = 999
+            best_loss = np.inf
             model_files={}
             log_files={}
             for init in range(self.n_init):
@@ -264,7 +274,11 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                     print "[+] {0} of {1} inits".format(init+1,self.n_init)
                     model = Sequential()
 
-                    model.add(Dense(self.hidden_layer_sizes[0], input_dim=X.shape[1], activation=self.activation[0]))
+                    model.add(Dense(X.shape[1], input_dim=X.shape[1], activation='relu'))
+
+                    model.add(Dense(self.hidden_layer_sizes[0], activation=self.activation[0]))
+
+                    #model.add(Dense(self.hidden_layer_sizes[0], input_dim=X.shape[1], activation=self.activation[0]))
 
                     model.add(Dense(len(self.classes_), activation=self.activation[1]))
 
@@ -278,8 +292,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                                                           self.es_kwargs))
 
                     if self.save_best_model:
-                        model_files[init] = os.path.join(self.get_params()['dir'],'model_init_{0}.h5'.format(init))
-                        self.mc_kwargs['filepath'] = model_files[init]
+                        self.mc_kwargs['filepath'] = os.path.join(self.get_params()['dir'],'best_model.h5')
                         callbacks_list.append(get_objects(keras.callbacks,
                                                          'ModelCheckpoint',
                                                          self.mc_kwargs))
@@ -301,14 +314,15 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                         sample_weight_tmp = sample_weight
                     else:
                         monitor = 'val_loss'
-                        validation_data = (preproc_X[test_id],sparce_y[test_id],sample_weight[test_id])
                         x_data = preproc_X[train_id]
                         y_sparse = sparce_y[train_id]
                         y_fit = y[train_id]
                         if sample_weight is None:
                             sample_weight_tmp = sample_weight
+                            validation_data = (preproc_X[test_id],sparce_y[test_id])
                         else:
                             sample_weight_tmp = sample_weight[train_id]
+                            validation_data = (preproc_X[test_id],sparce_y[test_id],sample_weight[test_id])
 
 
                     init_trn_desc = model.fit(x_data,y_sparse,
@@ -326,10 +340,6 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                     if np.min(init_trn_desc.history[monitor]) < best_loss:
                         best_init = init
 
-            if self.save_best_model:
-                self.mc_kwargs['filepath'] = best_file(path_files=model_files,
-                                                       choose_key=best_init,
-                                                       path_rename_file=os.path.join(self.get_params()['dir'],'model.h5'))
 
             if self.train_log:
                 self.lg_kwargs['filename'] = best_file(path_files=log_files,
@@ -347,10 +357,11 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
             raise Exception('use \'fit\' function first')
 
         preproc_X = self._preprocess(X)
+
         if predict is 'sparce':
-            return self.model.predict(X)
+            return self.model.predict(preproc_X)
         else:
-            return self.model.predict_classes(X)
+            return self.model.predict_classes(preproc_X)
 
     def predict_proba(self,X):
 
@@ -359,6 +370,9 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
 
         preproc_X = self._preprocess(X)
         return self.model.predict_proba(preproc_X)
+
+    def decision_function(self,X,predict='classes'):
+        return self.predict(X,predict=predict)
 
     def score(self,X,y=None):
 
