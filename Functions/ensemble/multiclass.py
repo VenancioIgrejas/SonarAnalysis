@@ -5,7 +5,7 @@ from numpy import linalg
 
 import heapq
 
-from sklearn.base import clone
+from sklearn.base import clone,is_classifier
 from sklearn.metrics import confusion_matrix
 from sklearn.preprocessing import LabelBinarizer
 from sklearn.multiclass import OneVsRestClassifier, _fit_binary, _ConstantPredictor, _num_samples, _predict_binary, check_is_fitted
@@ -16,6 +16,8 @@ from sklearn.utils.multiclass import (_check_partial_fit_first_call,
                                _ovr_decision_function)
 
 from joblib import Parallel, delayed
+
+from ensemble.utils import *
 
 from Functions.util import run_once,rm_permutation_tuple
 
@@ -62,6 +64,7 @@ def _fit_binary(estimator, X, y,selfClass,sample_weight,classes=None):
         estimator.fit(X, y, sample_weight=sample_weight)
     return estimator
 
+#DEPRECABLE: HierarqNet Not using confusion matrix as decision fit
 def _second_argmax_cm(cm):
     """ return list of indexes according second value maximun in each row"""
     list_indexes  = []
@@ -73,6 +76,7 @@ def _second_argmax_cm(cm):
             "the accuracy of class {0}".format(irow+1))
         list_indexes.append((irow,icolumn))
     return list_indexes
+
 
 
 class SpecialistClass(OneVsRestClassifier):
@@ -210,28 +214,15 @@ class SpecialistClass(OneVsRestClassifier):
             return self.label_binarizer_.inverse_transform(indicator)
 
 class HierarqNet(object):
-    """docstring for HierarqNet.
-
-    Parameters
-    ----------
-    estimator : estimator object
-        An estimator object implementing `fit` and one of `decision_function`
-        or `predict_proba`.
-
-    n_jobs : int or None, optional (default=None)
-        The number of jobs to use for the computation.
-        ``None`` means 1 unless in a :obj:`joblib.parallel_backend` context.
-        ``-1`` means using all processors. See :term:`Glossary <n_jobs>`
-        for more details.
-
-    """
-    def __init__(self, estimator, n_jobs=None, dir='./'):
+    """docstring for HierarqNet"""
+    def __init__(self,estimator,n_jobs=None,dir='./'):
+        
         self.estimator = estimator
         self.n_jobs = n_jobs
-        self.dir = dir
+        self.dir=dir
 
     def fit(self, X, y):
-        """fit underlying estimators """
+        """ fit underlying estimators """
 
         X, y = check_X_y(X, y, accept_sparse=['csr', 'csc'])
         check_classification_targets(y)
@@ -251,34 +242,86 @@ class HierarqNet(object):
           path = getattr(self, 'dir') + 'lv1_estimator/'
 
           if not os.path.exists(path):
-              os.makedirs(path)
+            os.makedirs(path)
+            estimator_lv1.set_params(**dict([('dir',path)]))
 
-        estimator_lv1.set_params(**dict([('dir',path)]))
 
-        #get validation data of estimators
-        try:
-            _, test_id = self.estimator.get_params()['validation_id']
-        except KeyError:
-            raise ValueError("%s doesn't have \"validation_id\" as parameter,"
-            "it's necessary for create the confusion matrix" %str(self.estimator))
+        y_lvl1 = map_trgt()
 
-        estimator_lv1.fit(X, y)
-        y_pred = estimator_lv1.predict(X[test_id])
-        y_true = y[test_id]
 
-        cm = confusion_matrix(y_true, y_pred)
 
-        print(cm)
+        
 
-        indexes_cm = _second_argmax_cm(cm)
+# class HierarqNet(object):
+#     """docstring for HierarqNet.
 
-        indexes_cm = rm_permutation_tuple(indexes_cm)
+#     Parameters
+#     ----------
+#     estimator : estimator object
+#         An estimator object implementing `fit` and one of `decision_function`
+#         or `predict_proba`.
 
-        estimators_indices = list(zip(*(Parallel(n_jobs=self.n_jobs)(
-            delayed(_fit_ovo_binary)
-            (self.estimator, X, y, self.classes_[irow], self.classes_[icolumn])
-            for irow,icolumn in indexes_cm))))
+#     n_jobs : int or None, optional (default=None)
+#         The number of jobs to use for the computation.
+#         ``None`` means 1 unless in a :obj:`joblib.parallel_backend` context.
+#         ``-1`` means using all processors. See :term:`Glossary <n_jobs>`
+#         for more details.
 
-        self.estimators_ = estimators_indices[0]
+#     """
+#     def __init__(self, estimator, n_jobs=None, dir='./'):
+#         self.estimator = estimator
+#         self.n_jobs = n_jobs
+#         self.dir = dir
 
-        return estimators_indices
+#     def fit(self, X, y):
+#         """fit underlying estimators """
+
+#         X, y = check_X_y(X, y, accept_sparse=['csr', 'csc'])
+#         check_classification_targets(y)
+
+#         self.classes_ = np.unique(y)
+#         if len(self.classes_) == 1:
+#             raise ValueError("HierarqNet can not be fit when only one"
+#                              " class is present.")
+
+#         n_classes = self.classes_.shape[0]
+
+#         estimator_lv1 = clone(self.estimator)
+
+#         #check if estimator has 'dir' as parameter
+#         #then create a dir to save meta_date of the estimator
+#         if hasattr(estimator_lv1, 'dir'):
+#           path = getattr(self, 'dir') + 'lv1_estimator/'
+
+#           if not os.path.exists(path):
+#               os.makedirs(path)
+
+#         estimator_lv1.set_params(**dict([('dir',path)]))
+
+#         #get validation data of estimators
+#         try:
+#             _, test_id = self.estimator.get_params()['validation_id']
+#         except KeyError:
+#             raise ValueError("%s doesn't have \"validation_id\" as parameter,"
+#             "it's necessary for create the confusion matrix" %str(self.estimator))
+
+#         estimator_lv1.fit(X, y)
+#         y_pred = estimator_lv1.predict(X[test_id])
+#         y_true = y[test_id]
+
+#         cm = confusion_matrix(y_true, y_pred)
+
+#         print(cm)
+
+#         indexes_cm = _second_argmax_cm(cm)
+
+#         indexes_cm = rm_permutation_tuple(indexes_cm)
+
+#         estimators_indices = list(zip(*(Parallel(n_jobs=self.n_jobs)(
+#             delayed(_fit_ovo_binary)
+#             (self.estimator, X, y, self.classes_[irow], self.classes_[icolumn])
+#             for irow,icolumn in indexes_cm))))
+
+#         self.estimators_ = estimators_indices[0]
+
+#         return estimators_indices

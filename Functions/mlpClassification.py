@@ -11,17 +11,17 @@ from warnings import warn
 #import seaborn as sns
 
 
-import keras
+#import keras
 import numpy as np
 
 
-from keras import Sequential, Model
-from keras.layers import Dense, Activation
-from keras.callbacks import ModelCheckpoint
-from keras.models import load_model
-from keras.utils import np_utils
+#from keras import Sequential, Model
+#from keras.layers import Dense, Activation
+#from keras.callbacks import ModelCheckpoint
+#from keras.models import load_model
+#from keras.utils import np_utils
 
-from tensorflow import set_random_seed
+#from tensorflow import set_random_seed
 
 from sklearn.utils.class_weight import compute_class_weight
 from sklearn.base import BaseEstimator, ClassifierMixin
@@ -232,6 +232,8 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
         :param numpy.array y: of shape [n_samples]
         :return: list of []
         """
+        
+        from keras.utils import np_utils
 
         if not y is None:
             #ohe = OneHotEncoder(sparse=False)#,categories='auto')
@@ -245,6 +247,16 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
         return self._transform(X,y,fit,train_id),sparce_y
 
     def fit(self, X, y, sample_weight=None):
+            import keras
+
+            from keras import Sequential, Model
+            from keras.layers import Dense, Activation
+            from keras.callbacks import ModelCheckpoint
+            from keras.models import load_model
+            from keras.utils import np_utils
+            
+            from tensorflow import set_random_seed
+
 
             train_id, test_id = self.validation_id
 
