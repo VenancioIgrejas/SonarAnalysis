@@ -5,9 +5,13 @@ from Functions.TrainParameters import ClassificationFolds
 
 class CrossValidation(object):
     """docstring for CVClassifier."""
-    def __init__(self,estimator,X,y,n_folds=2,dev=False,verbose=False,dir='./'):
+    def __init__(self, X, y, estimator=None,n_folds=2,dev=False,verbose=False,dir='./'):
         #super(CVClassifier, self).__init__()
         #self.arg = arg
+
+        if not os.path.exists(dir):
+            os.makedirs(dir)
+            
         self.CVO = ClassificationFolds(dir,n_folds,y,dev,verbose)
         self.dir = dir
         self.data = X
@@ -20,6 +24,14 @@ class CrossValidation(object):
         if not os.path.exists(path):
             os.makedirs(path)
         return path
+
+    def train_test_split(self,ifold=0):
+
+        train_id, test_id = self.CVO[ifold]
+
+        folder = self.get_folder(ifold)
+
+        return train_id, test_id, folder
 
     def fit_ifold(self,ifold=0,sample_weight=None):
 

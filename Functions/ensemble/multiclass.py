@@ -2,6 +2,8 @@ import os
 
 import numpy as np
 from numpy import linalg
+import pandas as pd
+
 
 import heapq
 
@@ -17,7 +19,7 @@ from sklearn.utils.multiclass import (_check_partial_fit_first_call,
 
 from joblib import Parallel, delayed
 
-from ensemble.utils import *
+from Functions.ensemble.utils import logical_or
 
 from Functions.util import run_once,rm_permutation_tuple
 
@@ -215,11 +217,195 @@ class SpecialistClass(OneVsRestClassifier):
 
 class HierarqNet(object):
     """docstring for HierarqNet"""
-    def __init__(self,estimator,n_jobs=None,dir='./'):
+    def __init__(self,estimator,n_jobs=None,verbose=False,dir='./'):
         
         self.estimator = estimator
         self.n_jobs = n_jobs
         self.dir=dir
+        self.verbose = verbose
+        self.classes_ = None
+        self.classesLVL1_ = None
+        self.estimators_ = {}
+
+    def _fit_estimator(self, X, y, estimator, path_est, group_classes):
+        
+        estimator = clone(self.estimator)
+
+        if hasattr(estimator, 'dir'):
+          path = getattr(self, 'dir') + path_est#'estimator_A/'
+
+          if not os.path.exists(path):
+            os.makedirs(path)
+            estimator.set_params(**dict([('dir',path)]))
+
+        #classes_of_A = [[9,10,13,14,16],
+        #                [23,1,2,22],
+        #                [21]]
+
+        classe = 0
+
+        for super_class in group_classes:
+            super_class = map(lambda x:x-1,super_class)
+
+            args = logical_or(y, super_class)
+
+            concat_df_X.append(pd.DataFrame(X[args]))
+            concat_df_y.append(pd.DataFrame(classe*np.ones(y[args].shape,dtype=int)))
+
+            classe +=1
+
+        X_new = pd.concat(concat_df_X).values
+
+        y_new = pd.concat(concat_df_y).values
+
+        estimator.fit(X_new, y_new)
+
+        return estimator, X_new, y_new
+
+    def _fit_lvl1(self, estimator, X, y):
+
+        estimator_lv1 = clone(self.estimator)
+
+        #check if estimator has 'dir' as parameter
+        #then create a dir to save meta_date of the estimator
+        if hasattr(estimator_lv1, 'dir'):
+          path = getattr(self, 'dir') + 'estimator_super/'
+
+          if not os.path.exists(path):
+            os.makedirs(path)
+            estimator_lv1.set_params(**dict([('dir',path)]))
+
+        self.classes_of_lvl1   = [[9,10,13,14,16,23,1,2,22,21],
+                             [4,6,8,12,17,19],
+                             [11,24],
+                             [5,7,15,3,18,20]]
+
+        new_trgt_value = 0
+
+        #rever essa parte do codigo, por que nao estah otimizado. dah pra melhorar
+        for super_class in self.classes_of_lvl1:
+            super_class = map(lambda x:x-1,super_class)
+
+            for sub_class in super_class:
+                y[y==sub_class] = new_trgt_value
+
+            new_trgt_value += 1
+
+        if self.verbose:
+            print "Start train of Super Class - LVL1"
+        
+
+        estimator_lv1.fit(X, y)
+
+        self.estimators_['S'] = estimator_lv1, X, y
+
+        return estimator_lv1
+
+    def _predict_lvl1(self, X):
+        return self.estimators_['S'][0].predict(X) 
+
+    def _fit_lvl2(self, estimator, X, y):
+
+        if self.verbose:
+            print "Start train of Medium Class (A,B,C,D) - LVL2"
+
+        # estimator A
+        classes_of_A = [[9,10,13,14,16],
+                        [23,1,2,22],
+                        [21]]
+
+        self.estimators_['A'] = self._fit_estimator(X, y,
+                                                estimator, 
+                                                path_est='estimator_A/',
+                                                group_classes=classes_of_A)
+
+
+        # Estimator B
+
+        classes_of_B = [[4],
+                        [6],
+                        [8],
+                        [12],
+                        [17],
+                        [19]]
+
+        self.estimators_['B'] = self._fit_estimator(X, y,
+                                                estimator, 
+                                                path_est='estimator_B/',
+                                                group_classes=classes_of_B)
+
+        # Estimator C
+
+        classes_of_C = [[11],
+                        [24]]
+        
+        self.estimators_['C'] = self._fit_estimator(X, y,
+                                                estimator, 
+                                                path_est='estimator_C/',
+                                                group_classes=classes_of_C)
+
+        #estimator D
+
+        classes_of_D = [[5,7,15],
+                        [3,18,20]]
+
+
+        self.estimators_['D'] = self._fit_estimator(X, y,
+                                                estimator, 
+                                                path_est='estimator_D/',
+                                                group_classes=classes_of_D)
+
+    def _fit_lvl3(self, estimator, X, y):
+
+        if self.verbose:
+            print "Start train of Medium Class (AA,AB,DA,DB) - LVL3"
+
+
+        #estimator AA
+        classes_of_AA = [[9],
+                         [10],
+                         [13],
+                         [14],
+                         [16]]
+
+        self.estimators_['AA'] = self._fit_estimator(X, y,
+                                                estimator, 
+                                                path_est='estimator_AA/',
+                                                group_classes=classes_of_AA)
+
+        #estimator AB
+        classes_of_AB = [[23],
+                         [1],
+                         [2],
+                         [22]]
+
+        self.estimators_['AB'] = self._fit_estimator(X, y,
+                                                estimator, 
+                                                path_est='estimator_AB/',
+                                                group_classes=classes_of_AB)
+
+        #estimator CC only have one class (21), so we dont need train
+
+        #estimator DA
+        classes_of_DA = [[5],
+                         [7],
+                         [15]]
+
+        self.estimators_['DA'] = self._fit_estimator(X, y,
+                                                estimator, 
+                                                path_est='estimator_DA/',
+                                                group_classes=classes_of_DA)
+
+        #estimator DB
+        classes_of_DB = [[5],
+                         [7],
+                         [15]]
+
+        self.estimators_['DB'] = self._fit_estimator(X, y,
+                                                estimator, 
+                                                path_est='estimator_DB/',
+                                                group_classes=classes_of_DB)
+
 
     def fit(self, X, y):
         """ fit underlying estimators """
@@ -228,25 +414,35 @@ class HierarqNet(object):
         check_classification_targets(y)
 
         self.classes_ = np.unique(y)
-        if len(self.classes_) == 1:
-            raise ValueError("HierarqNet can not be fit when only one"
-                             " class is present.")
+        if not len(self.classes_) == 24:
+            raise ValueError("HierarqNet only can be fit with 24 classes")
 
         n_classes = self.classes_.shape[0]
 
-        estimator_lv1 = clone(self.estimator)
+        self._fit_lvl1(self.estimator, X, y)
+        self._fit_lvl2(self.estimator, X, y)
+        self._fit_lvl3(self.estimator, X, y)
 
-        #check if estimator has 'dir' as parameter
-        #then create a dir to save meta_date of the estimator
-        if hasattr(estimator_lv1, 'dir'):
-          path = getattr(self, 'dir') + 'lv1_estimator/'
+    def predict(self, X):
 
-          if not os.path.exists(path):
-            os.makedirs(path)
-            estimator_lv1.set_params(**dict([('dir',path)]))
+        y_pred_lvl1 = self._predict_lvl1(X)
+
+        args_lvl1 = ()
+
+        for super_class in self.classes_of_lvl1:
+            args_lvl1 += (logical_or(y_pred_lvl1, super_class),)
+
+        y_pred_A = self.estimators_['A'][0].predict(X[args_lvl1[0]])
+
+        y_pred_B = self.estimators_['B'][0].predict(X[args_lvl1[1]])
+
+        y_pred_C = self.estimators_['C'][0].predict(X[args_lvl1[2]])
 
 
-        y_lvl1 = map_trgt()
+
+
+
+
 
 
 

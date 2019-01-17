@@ -34,11 +34,13 @@ elif [[ "$USER" == "venancio" ]]; then
     if [ "$OSTYPE" == "linux-gnu" ] || ["$OSTYPE" == "GNU/Linux"]; then
         # Ubuntu
         export SONAR_WORKSPACE=/home/venancio/Workspace/SonarAnalysis
+        export LPS_TOOLS=/home/venancio/Workspace/LpsToolbox
         export INPUTDATAPATH=/home/venancio/Public/Marinha/Data
     fi
 fi
 export OUTPUTDATAPATH=$SONAR_WORKSPACE/Results
 export PYTHONPATH=$SONAR_WORKSPACE:$PYTHONPATH
+export PYTHONPATH=$LPS_TOOLS:$PYTHONPATH
 
 export MY_PATH=$SONAR_WORKSPACE
 

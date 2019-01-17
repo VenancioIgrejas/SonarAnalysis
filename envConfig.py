@@ -9,7 +9,7 @@ if CONFIG['osType'] == "Linux":
 else:
     exit(0)
 
-CONFIG["SONAR_WORKSPACE"] = os.path.join(CONFIG['homePath'],"WorkPlace","SonarAnalysis")
+CONFIG["SONAR_WORKSPACE"] = os.path.join(CONFIG['homePath'],"Workspace","SonarAnalysis")
 CONFIG["INPUTDATAPATH"] = os.path.join(CONFIG["homePath"], "Public", "Marinha", "Data")
 CONFIG["OUTPUTDATAPATH"] = os.path.join(CONFIG["SONAR_WORKSPACE"], "Results")
 
