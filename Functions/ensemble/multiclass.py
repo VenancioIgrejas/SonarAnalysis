@@ -20,8 +20,12 @@ from sklearn.utils.multiclass import (_check_partial_fit_first_call,
 from joblib import Parallel, delayed
 
 from Functions.ensemble.utils import logical_or
+from Functions.preprocessing import CrossValidation
 
+from Functions.util import percent_of_each_class
 from Functions.util import run_once,rm_permutation_tuple
+
+from lps_toolbox.metrics.classification import sp_index
 
 def _fit_binary(estimator, X, y,selfClass,sample_weight,classes=None):
     """Fit a single binary estimator."""
@@ -79,7 +83,50 @@ def _second_argmax_cm(cm):
         list_indexes.append((irow,icolumn))
     return list_indexes
 
+def _best_estimator(estimador, X, y, cv, n_jobs=None,verbose=False):
+    """ fit k-folders estimators and choose the best according to SP criterion
+    """
+    estimators_ = [clone(estimator) for i in range(cv.n_jobs)]
 
+    sp_estimators = []
+
+    for ifold in range(cv.n_jobs):
+        if verbose:
+            print("fold {0} of {1} ".format(ifold+1,cv.n_jobs))
+
+        iestimator = estimators_[ifold]
+
+        train_id, test_id, folder = cv.train_test_split(ifold)
+
+        if hasattr(iestimator,'validation_id') and hasattr(iestimator, 'dir'):
+
+            iestimator.set_params(**dict([('dir',folder),('validation_id',(train_id,test_id))]))
+            iestimator.fit(X, y)
+        else:
+            raise ValueError("{0} not has 'validation_id' or 'dir' as parameters ".format(iestimator))
+
+        y_pred = iestimator.predict(X[test_id])
+        y_true = y[test_id]
+
+        #save true target and predicted target as csv file
+        pd.DataFrame({'true':y_true,'predict':y_pred}).to_csv(folder+'true_predict.csv')
+
+        #save confusion matrix as csv file without index and header
+        pd.DataFrame(confusion_matrix(y_true,y_pred)).to_csv(folder+'confusion_matrix.csv',header=False,index=False)
+
+        sp = sp_index(y_true, y_pred)
+
+        if verbose:
+            print("sp value of fold {0} is {1:.2f}".format(ifold+1,sp))
+
+        sp_estimators.append(sp)
+
+    bestSP_id = np.argmax(sp_estimators)
+
+    if verbose:
+        print("fold {0} has the highest sp value: {1:.2f}".format(ifold+1,sp[bestSP_id]))
+
+    return estimators_[bestSP_id]
 
 class SpecialistClass(OneVsRestClassifier):
     """docstring for SpecialistClass."""
@@ -217,12 +264,13 @@ class SpecialistClass(OneVsRestClassifier):
 
 class HierarqNet(object):
     """docstring for HierarqNet"""
-    def __init__(self,estimator,n_jobs=None,verbose=False,dir='./'):
+    def __init__(self,estimator,n_jobs=None,verbose=False,n_folds=None,dir='./'):
         
         self.estimator = estimator
         self.n_jobs = n_jobs
-        self.dir=dir
         self.verbose = verbose
+        self.n_folds = n_folds
+        self.dir=dir
         self.classes_ = None
         self.classesLVL1_ = None
         self.estimators_ = {}
@@ -232,10 +280,11 @@ class HierarqNet(object):
         estimator = clone(self.estimator)
 
         if hasattr(estimator, 'dir'):
-          path = getattr(self, 'dir') + path_est#'estimator_A/'
+            path = getattr(self, 'dir') + path_est#'estimator_A/'
 
-          if not os.path.exists(path):
-            os.makedirs(path)
+            if not os.path.exists(path):
+                os.makedirs(path)
+        
             estimator.set_params(**dict([('dir',path)]))
 
         #classes_of_A = [[9,10,13,14,16],
@@ -243,14 +292,16 @@ class HierarqNet(object):
         #                [21]]
 
         classe = 0
+        concat_df_X = []
+        concat_df_y = []
 
         for super_class in group_classes:
             super_class = map(lambda x:x-1,super_class)
 
-            args = logical_or(y, super_class)
+            samples = logical_or(y, super_class)
 
-            concat_df_X.append(pd.DataFrame(X[args]))
-            concat_df_y.append(pd.DataFrame(classe*np.ones(y[args].shape,dtype=int)))
+            concat_df_X.append(pd.DataFrame(X[samples]))
+            concat_df_y.append(pd.DataFrame(classe*np.ones(y[samples].shape,dtype=int)))
 
             classe +=1
 
@@ -258,6 +309,11 @@ class HierarqNet(object):
 
         y_new = pd.concat(concat_df_y).values
 
+        #print path
+
+        y_new = y_new.reshape((y_new.shape[0],))
+        #print y_new
+        percent_of_each_class(X_new, y_new)
         estimator.fit(X_new, y_new)
 
         return estimator, X_new, y_new
@@ -269,10 +325,11 @@ class HierarqNet(object):
         #check if estimator has 'dir' as parameter
         #then create a dir to save meta_date of the estimator
         if hasattr(estimator_lv1, 'dir'):
-          path = getattr(self, 'dir') + 'estimator_super/'
+            path = getattr(self, 'dir') + 'estimator_super/'
+            
+            if not os.path.exists(path):
+                os.makedirs(path)
 
-          if not os.path.exists(path):
-            os.makedirs(path)
             estimator_lv1.set_params(**dict([('dir',path)]))
 
         self.classes_of_lvl1   = [[9,10,13,14,16,23,1,2,22,21],
@@ -282,22 +339,34 @@ class HierarqNet(object):
 
         new_trgt_value = 0
 
+        y_new = -np.ones(y.shape[0],dtype=int)
         #rever essa parte do codigo, por que nao estah otimizado. dah pra melhorar
         for super_class in self.classes_of_lvl1:
             super_class = map(lambda x:x-1,super_class)
 
             for sub_class in super_class:
-                y[y==sub_class] = new_trgt_value
+                y_new[y==sub_class] = new_trgt_value
+                
 
             new_trgt_value += 1
 
+        if -1 in y_new:
+            raise ValueError("deu merda")
+
         if self.verbose:
             print "Start train of Super Class - LVL1"
-        
 
-        estimator_lv1.fit(X, y)
+        #percent_of_each_class(X, y_new)
 
-        self.estimators_['S'] = estimator_lv1, X, y
+        cv = CrossValidation(X= X, y= y_new, 
+                             n_folds=self.n_folds, dev=False,
+                             verbose=self.verbose, dir=path)
+
+         = _best_estimator(estimator_lv1, X, y_new, cv)
+
+        estimator_lv1.fit(X, y_new)
+
+        self.estimators_['S'] = estimator_lv1, X, y_new
 
         return estimator_lv1
 
@@ -310,19 +379,19 @@ class HierarqNet(object):
             print "Start train of Medium Class (A,B,C,D) - LVL2"
 
         # estimator A
-        classes_of_A = [[9,10,13,14,16],
+        self.classes_of_A = [[9,10,13,14,16],
                         [23,1,2,22],
                         [21]]
 
         self.estimators_['A'] = self._fit_estimator(X, y,
                                                 estimator, 
                                                 path_est='estimator_A/',
-                                                group_classes=classes_of_A)
+                                                group_classes=self.classes_of_A)
 
 
         # Estimator B
 
-        classes_of_B = [[4],
+        self.classes_of_B = [[4],
                         [6],
                         [8],
                         [12],
@@ -332,28 +401,28 @@ class HierarqNet(object):
         self.estimators_['B'] = self._fit_estimator(X, y,
                                                 estimator, 
                                                 path_est='estimator_B/',
-                                                group_classes=classes_of_B)
+                                                group_classes=self.classes_of_B)
 
         # Estimator C
 
-        classes_of_C = [[11],
+        self.classes_of_C = [[11],
                         [24]]
         
         self.estimators_['C'] = self._fit_estimator(X, y,
                                                 estimator, 
                                                 path_est='estimator_C/',
-                                                group_classes=classes_of_C)
+                                                group_classes=self.classes_of_C)
 
         #estimator D
 
-        classes_of_D = [[5,7,15],
+        self.classes_of_D = [[5,7,15],
                         [3,18,20]]
 
 
         self.estimators_['D'] = self._fit_estimator(X, y,
                                                 estimator, 
                                                 path_est='estimator_D/',
-                                                group_classes=classes_of_D)
+                                                group_classes=self.classes_of_D)
 
     def _fit_lvl3(self, estimator, X, y):
 
@@ -362,7 +431,7 @@ class HierarqNet(object):
 
 
         #estimator AA
-        classes_of_AA = [[9],
+        self.classes_of_AA = [[9],
                          [10],
                          [13],
                          [14],
@@ -371,10 +440,10 @@ class HierarqNet(object):
         self.estimators_['AA'] = self._fit_estimator(X, y,
                                                 estimator, 
                                                 path_est='estimator_AA/',
-                                                group_classes=classes_of_AA)
+                                                group_classes=self.classes_of_AA)
 
         #estimator AB
-        classes_of_AB = [[23],
+        self.classes_of_AB = [[23],
                          [1],
                          [2],
                          [22]]
@@ -382,29 +451,29 @@ class HierarqNet(object):
         self.estimators_['AB'] = self._fit_estimator(X, y,
                                                 estimator, 
                                                 path_est='estimator_AB/',
-                                                group_classes=classes_of_AB)
+                                                group_classes=self.classes_of_AB)
 
-        #estimator CC only have one class (21), so we dont need train
+        #estimator AC only have one class (21), so we dont need train
 
         #estimator DA
-        classes_of_DA = [[5],
+        self.classes_of_DA = [[5],
                          [7],
                          [15]]
 
         self.estimators_['DA'] = self._fit_estimator(X, y,
                                                 estimator, 
                                                 path_est='estimator_DA/',
-                                                group_classes=classes_of_DA)
+                                                group_classes=self.classes_of_DA)
 
         #estimator DB
-        classes_of_DB = [[5],
+        self.classes_of_DB = [[5],
                          [7],
                          [15]]
 
         self.estimators_['DB'] = self._fit_estimator(X, y,
                                                 estimator, 
                                                 path_est='estimator_DB/',
-                                                group_classes=classes_of_DB)
+                                                group_classes=self.classes_of_DB)
 
 
     def fit(self, X, y):
@@ -421,22 +490,156 @@ class HierarqNet(object):
 
         self._fit_lvl1(self.estimator, X, y)
         self._fit_lvl2(self.estimator, X, y)
+
+        return 0
         self._fit_lvl3(self.estimator, X, y)
 
     def predict(self, X):
 
+
+        # global_pred will be updated by each class in the hierarchy
+        global_pred = -np.ones(X.shape[0],dtype=int)
+        
+        #vector that return the position of global_pred
+        # this vector will be use used for change each value of 
+        # global_pred
+        position = np.array([i for i in range(X.shape[0])])
+
+        #predict of S -> [0,1,2,3]
         y_pred_lvl1 = self._predict_lvl1(X)
 
-        args_lvl1 = ()
 
-        for super_class in self.classes_of_lvl1:
-            args_lvl1 += (logical_or(y_pred_lvl1, super_class),)
+        samples_lvl1 = ()
+        for iclass in np.unique(y_pred_lvl1):
+            samples_lvl1 += (y_pred_lvl1==iclass,)
 
-        y_pred_A = self.estimators_['A'][0].predict(X[args_lvl1[0]])
 
-        y_pred_B = self.estimators_['B'][0].predict(X[args_lvl1[1]])
+        #--predict of A -> [0,1,2]
+        samples_A = ()
+        y_pred_A = self.estimators_['A'][0].predict(X[samples_lvl1[0]])
+        for iclass in np.unique(y_pred_A):
+            samples_A += (y_pred_A==iclass,)
 
-        y_pred_C = self.estimators_['C'][0].predict(X[args_lvl1[2]])
+        #----predict of AA -> [0,1,2,3,4,5]
+        samples_AA = ()
+        y_pred_AA = self.estimators_['AA'][0].predict(
+                        X[samples_lvl1[0]][samples_A[0]]
+                        )
+        for iclass in np.unique(y_pred_AA):
+            samples_AA += (y_pred_AA==iclass,)
+
+        for iclass, true_class in enumerate([9,10,13,14,16]):
+            global_pred[position
+                       [samples_lvl1[0]]
+                       [samples_A[0]]
+                       [samples_AA[iclass]]
+                       ] = true_class
+
+        #----predict of AB -> [0,1,2,3]
+        samples_AB = ()
+        y_pred_AB = self.estimators_['AB'][0].predict(
+                        X[samples_lvl1[0]][samples_A[1]]
+                        )
+        for iclass in np.unique(y_pred_AB):
+            samples_AB += (y_pred_AB==iclass,)
+
+        for iclass, true_class in enumerate([1,2,22,23]):
+            global_pred[position
+                       [samples_lvl1[0]]
+                       [samples_A[1]]
+                       [samples_AA[iclass]]
+                       ] = true_class
+
+        #----predict of AC -> [0]
+
+        #    class AC have only the class 21, so all samples
+        #    related to class 3 of A will be 21
+
+        samples_AC = samples_A[2]
+        global_pred[position
+                   [samples_lvl1[0]]
+                   [samples_AC]
+                   ] = 21
+
+
+        #--predict of B -> [0,1,2,3,4,5]
+
+        samples_B = ()
+        y_pred_B = self.estimators_['B'][0].predict(X[samples_lvl1[1]])
+        for iclass in np.unique(y_pred_B):
+            samples_B += (y_pred_B==iclass,)
+
+        for iclass, true_class in enumerate([4,6,8,12,17,19]):
+            global_pred[position
+                       [samples_lvl1[0]]
+                       [samples_B[iclass]]
+                       ] = true_class
+
+        #--predict of C -> [0,1]
+        
+        samples_C = ()
+        y_pred_C = self.estimators_['C'][0].predict(X[samples_lvl1[2]])
+        for iclass in np.unique(y_pred_C):
+            samples_C += (y_pred_C==iclass,)
+
+        for iclass, true_class in enumerate([11,24]):
+            global_pred[position
+                       [samples_lvl1[2]]
+                       [samples_C[iclass]]
+                       ] = true_class
+
+        #--predict of D -> [0,1]
+        samples_D = ()
+        y_pred_D = self.estimators_['D'][0].predict(X[samples_lvl1[3]])
+        for iclass in np.unique(y_pred_D):
+            samples_D += (y_pred_A==iclass,)
+
+        #----predict of DA -> [0,1,2]
+        samples_DA = ()
+        y_pred_DA = self.estimators_['DA'][0].predict(
+                        X[samples_lvl1[0]][samples_D[0]]
+                        )
+        for iclass in np.unique(y_pred_DA):
+            samples_DA += (y_pred_DA==iclass,)
+
+        for iclass, true_class in enumerate([5,7,15]):
+            global_pred[position
+                       [samples_lvl1[0]]
+                       [samples_A[0]]
+                       [samples_AD[iclass]]
+                       ] = true_class
+
+        #----predict of DB -> [0,1,2]
+        samples_DB = ()
+        y_pred_DB = self.estimators_['DB'][0].predict(
+                        X[samples_lvl1[0]][samples_D[1]]
+                        )
+        for iclass in np.unique(y_pred_DB):
+            samples_DB += (y_pred_DB==iclass,)
+
+        for iclass, true_class in enumerate([3,18,20]):
+            global_pred[position
+                       [samples_lvl1[0]]
+                       [samples_A[0]]
+                       [samples_AD[iclass]]
+                       ] = true_class
+
+
+        if any([i==-1 for i in global_pred]):
+            raise ValueError("some sample does not belong"
+                            " to one of the 24 classes")
+
+
+        #transform global_pred for shape like y_true
+        #ex: class 1 is represented as 0, class 2 is represented as 1
+        #    and go on
+
+        global_pred = map(lambda x:x-1,global_pred)
+
+        return global_pred
+
+
+        
 
 
 

@@ -101,7 +101,7 @@ class LoadData(object):
 
     """
     def __init__(self,data_file=None,database='24classes', n_pts_fft=1024, decimation_rate=3,
-                 spectrum_bins_left=400):
+                 spectrum_bins_left=400,dev=False):
         #super(LoadData, self).__init__()
 
         m_time = time.time()
@@ -110,6 +110,7 @@ class LoadData(object):
         self.n_pts_fft = n_pts_fft
         self.decimation_rate = decimation_rate
         self.spectrum_bins_left = spectrum_bins_left
+        self.dev = dev
 
 
         self.DATA_PATH = CONFIG['OUTPUTDATAPATH']
@@ -133,6 +134,8 @@ class LoadData(object):
 
             print '[+] Time to read data file: '+str(m_time)+' seconds'
 
+            if self.dev:
+                data, trgt = self._dev_dataset(data, trgt)
 
             # correct format
 
@@ -142,6 +145,20 @@ class LoadData(object):
 
 
             self.class_labels = class_labels
+
+    def _dev_dataset(self,data,trgt,size_samples=1000):
+        """ reduce each class for only 1000 random samples"""
+
+        print("WARNING: each class was reduced to 1000 random samples")
+
+        df_alldata=[]
+
+        for iclass in np.unique(trgt):
+            idata = data[trgt==iclass]
+            sample = np.random.choice(idata.shape[0],size_samples,replace=False)
+            df_alldata.append(pd.DataFrame(idata[sample]))
+
+        return pd.concat(df_alldata).values, np.array(sorted(range(24)*1000))
 
     def infoEachData(self,class_specific):
         index_class = self.getClassLabels().index(class_specific)

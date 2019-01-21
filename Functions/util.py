@@ -131,3 +131,16 @@ def rm_permutation_tuple(pair_tuple):
                 pair_tuple.remove((icolumn,irow))
 
     return pair_tuple
+
+def percent_of_each_class(X, y):
+    """show samples percentage of each class in the data set 
+    """
+
+    for iclass in np.unique(y):
+        n_samples = X[y==iclass].shape[0]
+        perc_iclass = float(n_samples)/float(X.shape[0])*100
+        print("Class {0} has {1:.2f}% of {2}".format(iclass, perc_iclass, X.shape[0]))
+
+
+    return None
+

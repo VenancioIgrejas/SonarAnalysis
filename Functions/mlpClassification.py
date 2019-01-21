@@ -35,6 +35,8 @@ from Functions.util import check_mount_dict,get_objects,update_paramns,file_exis
 from sklearn.base import BaseEstimator, is_classifier, clone
 from sklearn.base import MetaEstimatorMixin
 
+from lps_toolbox.metrics.classification import sp_index
+
 
 
 
@@ -188,11 +190,12 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
         return self
 
     def _class_weight(self,y,class_weight='balanced'):
+
         if self.class_weight:
             return dict(zip(
                            np.unique(y),compute_class_weight(
                            class_weight=class_weight,classes=np.unique(y),y=y)))
-
+        
         return self.value_class_weight
 
     def _transform(self, X, y=None, fit=False,train_id=None):
@@ -296,7 +299,18 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
 
                     opt = getattr(keras.optimizers,self.optimize)
 
+                    #add sp funtions in metrics if have 'sp' in self.metrics
+                    if 'sp' in self.metrics:
+                        self.metrics.remove('sp')
+                        self.metrics.append(sp_index)
+
+                        #self.es_kwargs['monitor'] = sp_index
+                        #self.es_kwargs['mode'] = 'max'
+
+
+
                     model.compile(loss=self.loss, optimizer=opt(**self.op_adam_kwargs), metrics=self.metrics)
+
 
                     if self.early_stopping:
                         callbacks_list.append(get_objects(keras.callbacks,
@@ -348,7 +362,8 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                                               verbose=self.verbose,
                                               shuffle=self.shuffle)
 
-                    print model_files
+                    #print model_files
+
                     if np.min(init_trn_desc.history[monitor]) < best_loss:
                         best_init = init
 
@@ -358,7 +373,10 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                                                        choose_key=best_init,
                                                        path_rename_file=os.path.join(self.get_params()['dir'],'log_train.csv'))
 
-            self.model = load_model(self.mc_kwargs['filepath'])
+            if not sp_index in self.metrics:
+                self.model = load_model(self.mc_kwargs['filepath'])
+            else:
+                self.model = load_model(self.mc_kwargs['filepath'], custom_objects={'sp_index': sp_index})
 
 
             return self
