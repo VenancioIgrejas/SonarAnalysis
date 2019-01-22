@@ -22,7 +22,7 @@ from joblib import Parallel, delayed
 from Functions.ensemble.utils import logical_or
 from Functions.preprocessing import CrossValidation
 
-from Functions.util import percent_of_each_class
+from Functions.util import percent_of_each_class, file_exist
 from Functions.util import run_once,rm_permutation_tuple
 
 from lps_toolbox.metrics.classification import sp_index
@@ -83,16 +83,39 @@ def _second_argmax_cm(cm):
         list_indexes.append((irow,icolumn))
     return list_indexes
 
-def _best_estimator(estimador, X, y, cv, n_jobs=None,verbose=False):
+def _best_estimator(estimator, X, y, cv, n_jobs=None,verbose=False):
     """ fit k-folders estimators and choose the best according to SP criterion
     """
-    estimators_ = [clone(estimator) for i in range(cv.n_jobs)]
+    estimators_ = [clone(estimator) for i in range(cv.n_folds)]
 
     sp_estimators = []
 
-    for ifold in range(cv.n_jobs):
+    if file_exist(cv.dir +'SP_folds.csv'):
+        #Load model file case exist SP of all folders
+        file_sp = cv.dir +'SP_folds.csv'
         if verbose:
-            print("fold {0} of {1} ".format(ifold+1,cv.n_jobs))
+            print("SP of folders already exists in {0} file".format(file_sp))
+        
+        SP_folds = pd.read_csv(file_sp)['SP'].values
+    
+        if verbose:
+            print("fold {0} has the highest sp value: {1:.2f}".format(np.argmax(SP_folds)+1,SP_folds[np.argmax(SP_folds)]))
+        
+        train_id, test_id, folder = cv.train_test_split(np.argmax(SP_folds))
+
+        best_estimator = estimators_[np.argmax(SP_folds)]
+        if hasattr(best_estimator,'validation_id') and hasattr(best_estimator, 'dir'):
+
+            best_estimator.set_params(**dict([('dir',folder),('validation_id',(train_id,test_id))]))
+            best_estimator.fit(X, y)
+        else:
+            raise ValueError("{0} not has 'validation_id' or 'dir' as parameters ".format(best_estimator))
+
+        return best_estimator
+
+    for ifold in range(cv.n_folds):
+        if verbose:
+            print("fold {0} of {1} ".format(ifold+1,cv.n_folds))
 
         iestimator = estimators_[ifold]
 
@@ -117,14 +140,16 @@ def _best_estimator(estimador, X, y, cv, n_jobs=None,verbose=False):
         sp = sp_index(y_true, y_pred)
 
         if verbose:
-            print("sp value of fold {0} is {1:.2f}".format(ifold+1,sp))
+            print("sp value of fold {0} is {1:.3f}".format(ifold+1,sp))
 
         sp_estimators.append(sp)
+
+    pd.DataFrame({'SP':sp_estimators}).to_csv(cv.dir +'SP_folds.csv',index=False)
 
     bestSP_id = np.argmax(sp_estimators)
 
     if verbose:
-        print("fold {0} has the highest sp value: {1:.2f}".format(ifold+1,sp[bestSP_id]))
+        print("fold {0} has the highest sp value: {1:.2f}".format(bestSP_id+1,sp_estimators[bestSP_id]))
 
     return estimators_[bestSP_id]
 
@@ -276,7 +301,7 @@ class HierarqNet(object):
         self.estimators_ = {}
 
     def _fit_estimator(self, X, y, estimator, path_est, group_classes):
-        
+        # lebrar de tirar o estimator como parametro, eh mais facil usar o metodo da propria classe
         estimator = clone(self.estimator)
 
         if hasattr(estimator, 'dir'):
@@ -314,7 +339,18 @@ class HierarqNet(object):
         y_new = y_new.reshape((y_new.shape[0],))
         #print y_new
         percent_of_each_class(X_new, y_new)
-        estimator.fit(X_new, y_new)
+
+        cv = CrossValidation(X= X_new, y= y_new, 
+                             n_folds=self.n_folds, dev=False,
+                             verbose=self.verbose, dir=path)
+
+        estimator = _best_estimator(estimator=estimator, 
+                                        X= X_new,
+                                        y= y_new, 
+                                        cv=cv, 
+                                        n_jobs=None,
+                                        verbose=self.verbose)
+
 
         return estimator, X_new, y_new
 
@@ -362,9 +398,12 @@ class HierarqNet(object):
                              n_folds=self.n_folds, dev=False,
                              verbose=self.verbose, dir=path)
 
-         = _best_estimator(estimator_lv1, X, y_new, cv)
-
-        estimator_lv1.fit(X, y_new)
+        estimator_lv1 = _best_estimator(estimator=estimator_lv1, 
+                                        X= X,
+                                        y= y_new, 
+                                        cv=cv, 
+                                        n_jobs=None,
+                                        verbose=self.verbose)
 
         self.estimators_['S'] = estimator_lv1, X, y_new
 
@@ -488,10 +527,14 @@ class HierarqNet(object):
 
         n_classes = self.classes_.shape[0]
 
+        if hasattr(self.estimator,'validation_id'):
+            if self.estimator.get_params()['validation_id'] != (None,None):
+                raise ValueError("{0} except '(None,None)' as value of 'validation_id' parameter".format(self.estimator))
+
+
         self._fit_lvl1(self.estimator, X, y)
         self._fit_lvl2(self.estimator, X, y)
-
-        return 0
+        #return None
         self._fit_lvl3(self.estimator, X, y)
 
     def predict(self, X):
@@ -508,11 +551,13 @@ class HierarqNet(object):
         #predict of S -> [0,1,2,3]
         y_pred_lvl1 = self._predict_lvl1(X)
 
+        
 
         samples_lvl1 = ()
         for iclass in np.unique(y_pred_lvl1):
             samples_lvl1 += (y_pred_lvl1==iclass,)
 
+        
 
         #--predict of A -> [0,1,2]
         samples_A = ()
@@ -520,6 +565,7 @@ class HierarqNet(object):
         for iclass in np.unique(y_pred_A):
             samples_A += (y_pred_A==iclass,)
 
+        
         #----predict of AA -> [0,1,2,3,4,5]
         samples_AA = ()
         y_pred_AA = self.estimators_['AA'][0].predict(
@@ -535,6 +581,7 @@ class HierarqNet(object):
                        [samples_AA[iclass]]
                        ] = true_class
 
+        
         #----predict of AB -> [0,1,2,3]
         samples_AB = ()
         y_pred_AB = self.estimators_['AB'][0].predict(
@@ -549,6 +596,8 @@ class HierarqNet(object):
                        [samples_A[1]]
                        [samples_AA[iclass]]
                        ] = true_class
+
+        
 
         #----predict of AC -> [0]
 
@@ -637,90 +686,3 @@ class HierarqNet(object):
         global_pred = map(lambda x:x-1,global_pred)
 
         return global_pred
-
-
-        
-
-
-
-
-
-
-
-
-
-        
-
-# class HierarqNet(object):
-#     """docstring for HierarqNet.
-
-#     Parameters
-#     ----------
-#     estimator : estimator object
-#         An estimator object implementing `fit` and one of `decision_function`
-#         or `predict_proba`.
-
-#     n_jobs : int or None, optional (default=None)
-#         The number of jobs to use for the computation.
-#         ``None`` means 1 unless in a :obj:`joblib.parallel_backend` context.
-#         ``-1`` means using all processors. See :term:`Glossary <n_jobs>`
-#         for more details.
-
-#     """
-#     def __init__(self, estimator, n_jobs=None, dir='./'):
-#         self.estimator = estimator
-#         self.n_jobs = n_jobs
-#         self.dir = dir
-
-#     def fit(self, X, y):
-#         """fit underlying estimators """
-
-#         X, y = check_X_y(X, y, accept_sparse=['csr', 'csc'])
-#         check_classification_targets(y)
-
-#         self.classes_ = np.unique(y)
-#         if len(self.classes_) == 1:
-#             raise ValueError("HierarqNet can not be fit when only one"
-#                              " class is present.")
-
-#         n_classes = self.classes_.shape[0]
-
-#         estimator_lv1 = clone(self.estimator)
-
-#         #check if estimator has 'dir' as parameter
-#         #then create a dir to save meta_date of the estimator
-#         if hasattr(estimator_lv1, 'dir'):
-#           path = getattr(self, 'dir') + 'lv1_estimator/'
-
-#           if not os.path.exists(path):
-#               os.makedirs(path)
-
-#         estimator_lv1.set_params(**dict([('dir',path)]))
-
-#         #get validation data of estimators
-#         try:
-#             _, test_id = self.estimator.get_params()['validation_id']
-#         except KeyError:
-#             raise ValueError("%s doesn't have \"validation_id\" as parameter,"
-#             "it's necessary for create the confusion matrix" %str(self.estimator))
-
-#         estimator_lv1.fit(X, y)
-#         y_pred = estimator_lv1.predict(X[test_id])
-#         y_true = y[test_id]
-
-#         cm = confusion_matrix(y_true, y_pred)
-
-#         print(cm)
-
-#         indexes_cm = _second_argmax_cm(cm)
-
-#         indexes_cm = rm_permutation_tuple(indexes_cm)
-
-#         estimators_indices = list(zip(*(Parallel(n_jobs=self.n_jobs)(
-#             delayed(_fit_ovo_binary)
-#             (self.estimator, X, y, self.classes_[irow], self.classes_[icolumn])
-#             for irow,icolumn in indexes_cm))))
-
-#         self.estimators_ = estimators_indices[0]
-
-#         return estimators_indices
