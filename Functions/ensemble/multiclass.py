@@ -1,10 +1,12 @@
 import os
+import sys
 
 import numpy as np
 from numpy import linalg
 import pandas as pd
 
-
+import array
+import scipy.sparse as sp
 import heapq
 
 from sklearn.base import clone,is_classifier
@@ -18,6 +20,8 @@ from sklearn.utils.multiclass import (_check_partial_fit_first_call,
                                _ovr_decision_function)
 
 from joblib import Parallel, delayed
+
+from keras import backend as K
 
 from Functions.ensemble.utils import logical_or
 from Functions.preprocessing import CrossValidation
@@ -67,6 +71,12 @@ def _fit_binary(estimator, X, y,selfClass,sample_weight,classes=None):
 
                  estimator.set_params(**dict([('validation_data',tuple(val_data))]))
 
+        #try this part of code after train
+        #if selfClass.clear_session:
+        #    K.clear_session()
+        #    if selfClass.verbose:
+        #        print("")
+
         estimator.fit(X, y, sample_weight=sample_weight)
     return estimator
 
@@ -109,7 +119,15 @@ def _best_estimator(estimator, X, y, cv, n_jobs=None,verbose=False):
             best_estimator.set_params(**dict([('dir',folder),('validation_id',(train_id,test_id))]))
             best_estimator.fit(X, y)
         else:
-            raise ValueError("{0} not has 'validation_id' or 'dir' as parameters ".format(best_estimator))
+            #case self.estimator is a meta estimator (ex. Specialist Class)
+            if hasattr(best_estimator.estimator,'validation_id') and hasattr(best_estimator.estimator, 'dir'):
+                best_estimator.set_params(**dict([('dir',folder)]))
+                #print iestimator.get_params()
+                best_estimator.estimator.set_params(**dict([('validation_id',(train_id,test_id))]))
+                #sys.exit()
+                best_estimator.fit(X, y)
+            else:
+                raise ValueError("{0} not has 'validation_id' or 'dir' as parameters ".format(best_estimator))
 
         return best_estimator
 
@@ -126,7 +144,15 @@ def _best_estimator(estimator, X, y, cv, n_jobs=None,verbose=False):
             iestimator.set_params(**dict([('dir',folder),('validation_id',(train_id,test_id))]))
             iestimator.fit(X, y)
         else:
-            raise ValueError("{0} not has 'validation_id' or 'dir' as parameters ".format(iestimator))
+            #case self.estimator is a meta estimator (ex. Specialist Class)
+            if hasattr(iestimator.estimator,'validation_id') and hasattr(iestimator.estimator, 'dir'):
+                iestimator.set_params(**dict([('dir',folder)]))
+                #print iestimator.get_params()
+                iestimator.estimator.set_params(**dict([('validation_id',(train_id,test_id))]))
+                #sys.exit()
+                iestimator.fit(X, y)
+            else:
+                raise ValueError("{0} not has 'validation_id' or 'dir' as parameters ".format(iestimator))
 
         y_pred = iestimator.predict(X[test_id])
         y_true = y[test_id]
@@ -144,14 +170,19 @@ def _best_estimator(estimator, X, y, cv, n_jobs=None,verbose=False):
 
         sp_estimators.append(sp)
 
+        K.clear_session()
+
+
     pd.DataFrame({'SP':sp_estimators}).to_csv(cv.dir +'SP_folds.csv',index=False)
 
     bestSP_id = np.argmax(sp_estimators)
 
+
+
     if verbose:
         print("fold {0} has the highest sp value: {1:.2f}".format(bestSP_id+1,sp_estimators[bestSP_id]))
 
-    return estimators_[bestSP_id]
+    return estimators_[bestSP_id].fit(X, y)
 
 class SpecialistClass(OneVsRestClassifier):
     """docstring for SpecialistClass."""
@@ -257,6 +288,7 @@ class SpecialistClass(OneVsRestClassifier):
             thresh = .5
 
         n_samples = _num_samples(X)
+        
         if self.label_binarizer_.y_type_ == "multiclass":
             if self.pred_mode == "max_criteria":
                 #code for use maxima criteria predict
@@ -277,6 +309,7 @@ class SpecialistClass(OneVsRestClassifier):
                 argmaxima[maxima == pred] = i
             return self.classes_[np.array(argmaxima.T)]
         else:
+             
             indices = array.array('i')
             indptr = array.array('i', [0])
             for e in self.estimators_:
@@ -302,6 +335,12 @@ class HierarqNet(object):
 
     def _fit_estimator(self, X, y, estimator, path_est, group_classes):
         # lebrar de tirar o estimator como parametro, eh mais facil usar o metodo da propria classe
+
+        name_class = path_est.split('_')[1][:-1]
+
+        if self.verbose:
+            print("[+] training class {0}".format(name_class))
+
         estimator = clone(self.estimator)
 
         if hasattr(estimator, 'dir'):
@@ -387,7 +426,7 @@ class HierarqNet(object):
             new_trgt_value += 1
 
         if -1 in y_new:
-            raise ValueError("deu merda")
+            raise ValueError("something wrong happend")
 
         if self.verbose:
             print "Start train of Super Class - LVL1"
@@ -404,6 +443,8 @@ class HierarqNet(object):
                                         cv=cv, 
                                         n_jobs=None,
                                         verbose=self.verbose)
+
+        percent_of_each_class(X, y_new)
 
         self.estimators_['S'] = estimator_lv1, X, y_new
 
@@ -505,9 +546,9 @@ class HierarqNet(object):
                                                 group_classes=self.classes_of_DA)
 
         #estimator DB
-        self.classes_of_DB = [[5],
-                         [7],
-                         [15]]
+        self.classes_of_DB = [[3],
+                         [18],
+                         [20]]
 
         self.estimators_['DB'] = self._fit_estimator(X, y,
                                                 estimator, 
@@ -531,10 +572,16 @@ class HierarqNet(object):
             if self.estimator.get_params()['validation_id'] != (None,None):
                 raise ValueError("{0} except '(None,None)' as value of 'validation_id' parameter".format(self.estimator))
 
-
+        if self.verbose:
+            print("[+] start train of level 1 estimators")
         self._fit_lvl1(self.estimator, X, y)
+
+        if self.verbose:
+            print("[+] start train of level 2 estimators")
         self._fit_lvl2(self.estimator, X, y)
-        #return None
+        
+        if self.verbose:
+            print("[+] start train of level 3 estimators")
         self._fit_lvl3(self.estimator, X, y)
 
     def predict(self, X):
@@ -590,11 +637,11 @@ class HierarqNet(object):
         for iclass in np.unique(y_pred_AB):
             samples_AB += (y_pred_AB==iclass,)
 
-        for iclass, true_class in enumerate([1,2,22,23]):
+        for iclass, true_class in enumerate([23,1,2,22]):
             global_pred[position
                        [samples_lvl1[0]]
                        [samples_A[1]]
-                       [samples_AA[iclass]]
+                       [samples_AB[iclass]]
                        ] = true_class
 
         
@@ -620,7 +667,7 @@ class HierarqNet(object):
 
         for iclass, true_class in enumerate([4,6,8,12,17,19]):
             global_pred[position
-                       [samples_lvl1[0]]
+                       [samples_lvl1[1]]
                        [samples_B[iclass]]
                        ] = true_class
 
@@ -641,36 +688,36 @@ class HierarqNet(object):
         samples_D = ()
         y_pred_D = self.estimators_['D'][0].predict(X[samples_lvl1[3]])
         for iclass in np.unique(y_pred_D):
-            samples_D += (y_pred_A==iclass,)
+            samples_D += (y_pred_D==iclass,)
 
         #----predict of DA -> [0,1,2]
         samples_DA = ()
         y_pred_DA = self.estimators_['DA'][0].predict(
-                        X[samples_lvl1[0]][samples_D[0]]
+                        X[samples_lvl1[3]][samples_D[0]]
                         )
         for iclass in np.unique(y_pred_DA):
             samples_DA += (y_pred_DA==iclass,)
 
         for iclass, true_class in enumerate([5,7,15]):
             global_pred[position
-                       [samples_lvl1[0]]
-                       [samples_A[0]]
-                       [samples_AD[iclass]]
+                       [samples_lvl1[3]]
+                       [samples_D[0]]
+                       [samples_DA[iclass]]
                        ] = true_class
 
         #----predict of DB -> [0,1,2]
         samples_DB = ()
         y_pred_DB = self.estimators_['DB'][0].predict(
-                        X[samples_lvl1[0]][samples_D[1]]
+                        X[samples_lvl1[3]][samples_D[1]]
                         )
         for iclass in np.unique(y_pred_DB):
             samples_DB += (y_pred_DB==iclass,)
 
         for iclass, true_class in enumerate([3,18,20]):
             global_pred[position
-                       [samples_lvl1[0]]
-                       [samples_A[0]]
-                       [samples_AD[iclass]]
+                       [samples_lvl1[3]]
+                       [samples_D[1]]
+                       [samples_DB[iclass]]
                        ] = true_class
 
 

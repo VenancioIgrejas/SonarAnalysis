@@ -69,7 +69,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                  append=False,
                  class_weight = False,
                  early_stopping = False,
-                 monitor='val_loss', min_delta=0, patience=0,
+                 monitor='val_loss', min_delta=0.0001, patience=0,
                  mode='auto', baseline=None, restore_best_weights=False,
                  save_best_model = False,
                  save_weights_only=False, period=1,
