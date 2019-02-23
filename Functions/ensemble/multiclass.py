@@ -154,16 +154,49 @@ def _best_estimator(estimator, X, y, cv, n_jobs=None,verbose=False):
             else:
                 raise ValueError("{0} not has 'validation_id' or 'dir' as parameters ".format(iestimator))
 
-        y_pred = iestimator.predict(X[test_id])
-        y_true = y[test_id]
+        pred_sparce = iestimator.predict(X,predict='sparce')
+
+        if (len(np.unique(y)) != 2) | (pred_sparce.shape[0] != len(pred_sparce.flatten())):
+            y_pred = np.argmax(pred_sparce,axis=1)
+            values = np.array([row[np.argmax(row)] for row in pred_sparce])
+        else:
+            #binary classification, we use t
+            threshold = 0
+            # if sample is higher then threshold, this sample belongs to class 1 otherwise 0
+            y_pred =  np.array(map(lambda x: 1 if x >= threshold else 0,pred_sparce))
+            values = pred_sparce
+
+        folds = -np.ones(shape=(y.shape[0],),dtype=int)
+        folds[train_id] = 0
+        folds[test_id] = 1
+
+        
+
+        
 
         #save true target and predicted target as csv file
-        pd.DataFrame({'true':y_true,'predict':y_pred}).to_csv(folder+'true_predict.csv')
+        pd.DataFrame({'true':y[test_id],'predict':y_pred[test_id]}).to_csv(folder+'true_predict.csv')
+
+
+
+        
+        if (pred_sparce.shape[0] != len(pred_sparce.flatten())):
+            #if pred_sparce is binary, so the output of neuron will be the values in hierarq_analy_fold
+            #create csv file for output of each neuron
+            table_output = dict([('neuron_{0}'.format(i),pred_sparce[:,i]) for i in range(pred_sparce.shape[1])])
+            table_output['fold_{0}'.format(ifold)] = folds
+            pd.DataFrame(table_output).to_csv(folder+'output_sparce.csv',index=False)
+
+        pd.DataFrame({
+                      'target_{0}'.format(ifold):y,
+                      'HierarqNet(resultados)_{0}'.format(ifold):y_pred,
+                      'HierarqNet(valor)_{0}'.format(ifold):values,
+                      'fold_{0}'.format(ifold):folds}).to_csv(folder+'hierarq_analy_fold_{0}.csv'.format(ifold),index=False)
 
         #save confusion matrix as csv file without index and header
-        pd.DataFrame(confusion_matrix(y_true,y_pred)).to_csv(folder+'confusion_matrix.csv',header=False,index=False)
+        pd.DataFrame(confusion_matrix(y[test_id],y_pred[test_id])).to_csv(folder+'confusion_matrix.csv',header=False,index=False)
 
-        sp = sp_index(y_true, y_pred)
+        sp = sp_index(y[test_id], y_pred[test_id])
 
         if verbose:
             print("sp value of fold {0} is {1:.3f}".format(ifold+1,sp))
@@ -239,7 +272,6 @@ class SpecialistClass(OneVsRestClassifier):
 
         # Creating vector trgt for each
         if not self.pred_mode == "max_criteria":
-          print("aqui")
           return self
 
         #creating vector trgt for each'
@@ -248,28 +280,36 @@ class SpecialistClass(OneVsRestClassifier):
 
         #get validation data of estimators
         try:
-          _, test_id = self.estimator.get_params()['validation_id']
+          train_id, _ = self.estimator.get_params()['validation_id']
         except KeyError:
           raise Exception("%s doesn't have \"validation_id\" as parameter,it's necessary for creating weights in maximum criterion" %str(self.estimator))
 
-        val_trgt_col = (col.toarray().ravel() for col in Y[test_id].T)
+        val_trgt_col = (col.toarray().ravel() for col in Y[train_id].T)
         n_samples = _num_samples(X)
         n_specialist = len(self.classes_)
 
         #create vector of prediction size NxK, where N is number of feactures and K is number of classes
-        vector_pred = np.vstack((_predict_binary(e,X[test_id]) for e in self.estimators_)).T
+
+        #the function _predict_binary return score and in this case, the score is 
+        # score = np.ravel(estimator.decision_function(X))
+        # where ravel return a contiguous flattened array.
+        matrix_pred = np.vstack((_predict_binary(e,X[train_id]) for e in self.estimators_)).T
 
         self.weight_integrator = {}
 
+        self.column = []
         for i,column in enumerate(val_trgt_col):
-            self.weight_integrator[i] = np.dot(linalg.pinv(vector_pred),column.T)
+            column = np.array(map(lambda x:2*x-1,column))
+            self.column.append(column)
+            self.weight_integrator[i] = np.dot(linalg.pinv(matrix_pred),column.T)
 
         if self.verbose:
             print("finished creation of weights")
 
+
         return self
 
-    def predict(self, X):
+    def predict(self, X, predict='classes'):
         """Predict multi-class targets using underlying estimators.
         Parameters
         ----------
@@ -289,17 +329,31 @@ class SpecialistClass(OneVsRestClassifier):
 
         n_samples = _num_samples(X)
         
+        output_sparse_each_spec = []
         if self.label_binarizer_.y_type_ == "multiclass":
             if self.pred_mode == "max_criteria":
                 #code for use maxima criteria predict
                 if self.verbose:
                     print("start prediction using maximum criterion")
                 n_class = len(self.classes_)
-                vector_pred = np.vstack((_predict_binary(e,X) for e in self.estimators_)).T
+                matrix_pred = np.vstack((_predict_binary(e,X) for e in self.estimators_)).T
+                for ispec, istimator in enumerate(self.estimators_):
+                    print("[+] start predict of spec {0}".format(ispec))
+                    output_sparse_each_spec.append(istimator.decision_function(X,predict='sparce'))
+
                 output_pred = np.vstack(
-                    (np.dot(vector_pred,self.weight_integrator[key_weight]
+                    (np.dot(matrix_pred,self.weight_integrator[key_weight]
                            ) for key_weight in range(n_class))).T
+
+                self._output_pred = output_pred
+                self._matrix_pred= matrix_pred
+                self._output_sparse_each_spec=output_sparse_each_spec
+
+                if predict is 'sparce':
+                    return output_pred
+
                 return self.classes_[np.argmax(output_pred,axis=1)]
+
             maxima = np.empty(n_samples, dtype=float)
             maxima.fill(-np.inf)
             argmaxima = np.zeros(n_samples, dtype=int)
@@ -359,13 +413,15 @@ class HierarqNet(object):
         concat_df_X = []
         concat_df_y = []
 
+        ids = []
         for super_class in group_classes:
-            super_class = map(lambda x:x-1,super_class)
+            super_class = map(lambda x:x-1, super_class)
 
             samples = logical_or(y, super_class)
 
+            ids.append(samples)
             concat_df_X.append(pd.DataFrame(X[samples]))
-            concat_df_y.append(pd.DataFrame(classe*np.ones(y[samples].shape,dtype=int)))
+            concat_df_y.append(pd.DataFrame(classe*np.ones((y[samples].shape[0],),dtype=int)))
 
             classe +=1
 
@@ -382,6 +438,7 @@ class HierarqNet(object):
         cv = CrossValidation(X= X_new, y= y_new, 
                              n_folds=self.n_folds, dev=False,
                              verbose=self.verbose, dir=path)
+        #return cv,y_new,y
 
         estimator = _best_estimator(estimator=estimator, 
                                         X= X_new,
@@ -391,67 +448,20 @@ class HierarqNet(object):
                                         verbose=self.verbose)
 
 
-        return estimator, X_new, y_new
+        return estimator, X_new, y_new, ids
 
     def _fit_lvl1(self, estimator, X, y):
-
-        estimator_lv1 = clone(self.estimator)
-
-        #check if estimator has 'dir' as parameter
-        #then create a dir to save meta_date of the estimator
-        if hasattr(estimator_lv1, 'dir'):
-            path = getattr(self, 'dir') + 'estimator_super/'
-            
-            if not os.path.exists(path):
-                os.makedirs(path)
-
-            estimator_lv1.set_params(**dict([('dir',path)]))
 
         self.classes_of_lvl1   = [[9,10,13,14,16,23,1,2,22,21],
                              [4,6,8,12,17,19],
                              [11,24],
                              [5,7,15,3,18,20]]
 
-        new_trgt_value = 0
 
-        y_new = -np.ones(y.shape[0],dtype=int)
-        #rever essa parte do codigo, por que nao estah otimizado. dah pra melhorar
-        for super_class in self.classes_of_lvl1:
-            super_class = map(lambda x:x-1,super_class)
-
-            for sub_class in super_class:
-                y_new[y==sub_class] = new_trgt_value
-                
-
-            new_trgt_value += 1
-
-        if -1 in y_new:
-            raise ValueError("something wrong happend")
-
-        if self.verbose:
-            print "Start train of Super Class - LVL1"
-
-        #percent_of_each_class(X, y_new)
-
-        cv = CrossValidation(X= X, y= y_new, 
-                             n_folds=self.n_folds, dev=False,
-                             verbose=self.verbose, dir=path)
-
-        estimator_lv1 = _best_estimator(estimator=estimator_lv1, 
-                                        X= X,
-                                        y= y_new, 
-                                        cv=cv, 
-                                        n_jobs=None,
-                                        verbose=self.verbose)
-
-        percent_of_each_class(X, y_new)
-
-        self.estimators_['S'] = estimator_lv1, X, y_new
-
-        return estimator_lv1
-
-    def _predict_lvl1(self, X):
-        return self.estimators_['S'][0].predict(X) 
+        self.estimators_['S'] = self._fit_estimator(X, y,
+                                                    estimator,
+                                                    path_est='estimator_super/',
+                                                    group_classes=self.classes_of_lvl1)
 
     def _fit_lvl2(self, estimator, X, y):
 
@@ -555,6 +565,27 @@ class HierarqNet(object):
                                                 path_est='estimator_DB/',
                                                 group_classes=self.classes_of_DB)
 
+    def _predict_estimator(self, X, name):
+        """ return prection of estimador "name"
+            
+            Parameters
+        ----------
+        X : array-like, (number of samples X )
+            Dataset
+
+        name : {'S', 'A', 'B', 'C', 'D', 'AA','AB','AC', 'DA', 'DB'}
+            name of choosed estimator for predict
+        
+        """
+
+        shape_train  = self.estimators_[name][1].shape
+
+        shape_pred = X.shape
+
+        if shape_train != shape_pred:
+            raise ValueError("shape of data is {0}, but excepted {0}".format(shape_pred,shape_train))
+
+        return self.estimators_[name][0].predict(X) 
 
     def fit(self, X, y):
         """ fit underlying estimators """
@@ -596,7 +627,7 @@ class HierarqNet(object):
         position = np.array([i for i in range(X.shape[0])])
 
         #predict of S -> [0,1,2,3]
-        y_pred_lvl1 = self._predict_lvl1(X)
+        y_pred_lvl1 = self._predict_estimator(X, name='S')
 
         
 

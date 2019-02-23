@@ -1,7 +1,18 @@
 import os
+import numpy as np
 from joblib import Parallel, delayed
 from Functions.TrainParameters import ClassificationFolds
+from sklearn.utils.class_weight import compute_class_weight
 
+
+def class_weight_Keras(y,has_classWeights=True,class_weight='balanced'):
+
+        if has_classWeights:
+            return dict(zip(
+                           np.unique(y),compute_class_weight(
+                           class_weight=class_weight,classes=np.unique(y),y=y)))
+        
+        return None
 
 class CrossValidation(object):
     """docstring for CVClassifier."""

@@ -146,10 +146,10 @@ class LoadData(object):
 
             self.class_labels = class_labels
 
-    def _dev_dataset(self,data,trgt,size_samples=1000):
-        """ reduce each class for only 1000 random samples"""
+    def _dev_dataset(self,data,trgt,size_samples=100):
+        """ reduce each class for only 100 random samples"""
 
-        print("WARNING: each class was reduced to 1000 random samples")
+        print("WARNING: each class was reduced to {0} random samples".format(size_samples))
 
         df_alldata=[]
 
@@ -158,7 +158,7 @@ class LoadData(object):
             sample = np.random.choice(idata.shape[0],size_samples,replace=False)
             df_alldata.append(pd.DataFrame(idata[sample]))
 
-        return pd.concat(df_alldata).values, np.array(sorted(range(24)*1000))
+        return pd.concat(df_alldata).values, np.array(sorted(range(24)*size_samples))
 
     def infoEachData(self,class_specific):
         index_class = self.getClassLabels().index(class_specific)

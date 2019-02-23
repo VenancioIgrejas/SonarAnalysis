@@ -30,12 +30,15 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler,OneHotEncoder,LabelEncoder
 
 from Functions import TrainParameters
+from Functions.callbackKeras import metricsAdd
 from Functions.util import check_mount_dict,get_objects,update_paramns,file_exist,best_file
 
 from sklearn.base import BaseEstimator, is_classifier, clone
 from sklearn.base import MetaEstimatorMixin
 
 from lps_toolbox.metrics.classification import sp_index
+
+
 
 
 
@@ -47,7 +50,8 @@ def _check_sparce(y_parse,output_activation):
         else:
             raise ValueError("target sparse need contain only 0 and 1")
 
-    return np.vstack(map(lambda x:2*x-1,y_parse)) # transform y_sparce in 1 and -1 target
+    #return np.vstack(map(lambda x:2*x-1,y_parse)) # transform y_sparce in 1 and -1 target
+    return 2*y_parse - 1
 
 
 
@@ -70,7 +74,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                  class_weight = False,
                  early_stopping = False,
                  monitor='val_loss', min_delta=0.0001, patience=0,
-                 mode='auto', baseline=None, restore_best_weights=False,
+                 mode='auto', baseline=None, restore_best_weights=True,
                  save_best_model = False,
                  save_weights_only=False, period=1,
                  metrics=['acc'],
@@ -173,6 +177,8 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
         self.mc_kwargs = mc_kwargs
         self.lg_kwargs = lg_kwargs
 
+        self._y = None
+
 
 
     def _check_pararms_change(self):
@@ -241,13 +247,14 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
         if not y is None:
             #ohe = OneHotEncoder(sparse=False)#,categories='auto')
             #sparce_y = ohe.fit_transform(pd.DataFrame(y,columns=['target']))
-            enc = LabelEncoder()
-            enc_y = enc.fit_transform(y)
-            sparce_y = np_utils.to_categorical(enc_y)
+            sparce_y = np_utils.to_categorical(y)
 
         else:
             return self._transform(X,y,fit,train_id)
         return self._transform(X,y,fit,train_id),sparce_y
+
+    def load_train(self):
+        return pd.read_csv(os.path.join(self.get_params()['dir'],'log_train.csv'))
 
     def fit(self, X, y, sample_weight=None):
             import keras
@@ -263,13 +270,19 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
 
             train_id, test_id = self.validation_id
 
-            self.classes_ = self._classes(y)
+            self.classes_ = self._classes(y[train_id])
 
             self._check_pararms_change()
 
-            preproc_X,sparce_y = self._preprocess(X,y,fit=True,train_id=train_id)
+            #preproc_X,sparce_y = self._preprocess(X,y,fit=True,train_id=train_id)
 
-            sparce_y = _check_sparce(sparce_y,self.activation[1])
+            self.scaler_ = StandardScaler()
+            self.scaler_.fit(X[train_id], y)
+
+
+            
+
+            
 
             self.mc_kwargs['filepath'] = os.path.join(self.get_params()['dir'],'best_model.h5')
 
@@ -280,6 +293,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
 
 
             best_loss = np.inf
+            best_sp = -np.inf
             model_files={}
             log_files={}
             for init in range(self.n_init):
@@ -302,7 +316,10 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                     #add sp funtions in metrics if have 'sp' in self.metrics
                     if 'sp' in self.metrics:
                         self.metrics.remove('sp')
-                        self.metrics.append(sp_index)
+
+                    if self.monitor is 'sp':
+                        callbacks_list.append(metricsAdd('sp',self.verbose))
+                        #self.metrics.append(sp_index)
 
                         #self.es_kwargs['monitor'] = sp_index
                         #self.es_kwargs['mode'] = 'max'
@@ -332,6 +349,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
 
 
                     if train_id is None:
+                        if self.verbose: print ('Warning: train_id was passed as None')
                         validation_data = None
                         x_data = preproc_X
                         y_sparse = sparce_y
@@ -340,15 +358,34 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                         sample_weight_tmp = sample_weight
                     else:
                         monitor = 'val_loss'
-                        x_data = preproc_X[train_id]
-                        y_sparse = sparce_y[train_id]
+
+                        #I made this change beacuse of some problems on Hierarq Classe
+                        x_data_train = self.scaler_.transform(X[train_id])
+                        x_data_test = self.scaler_.transform(X[test_id])
+
+                        sparce_y = np_utils.to_categorical(y[train_id])
+                        sparce_y_train = _check_sparce(sparce_y,self.activation[1])
+
+                        self._y_train = sparce_y_train
+
+                        sparce_y = np_utils.to_categorical(y[test_id])
+                        sparce_y_test = _check_sparce(sparce_y,self.activation[1])
+
+                        self._y_test = sparce_y_test
+
+                        x_data = x_data_train
+                        y_sparse = sparce_y_train
+
                         y_fit = y[train_id]
+
+                        self._y = y
+
                         if sample_weight is None:
                             sample_weight_tmp = sample_weight
-                            validation_data = (preproc_X[test_id],sparce_y[test_id])
+                            validation_data = (x_data_test,sparce_y_test)
                         else:
                             sample_weight_tmp = sample_weight[train_id]
-                            validation_data = (preproc_X[test_id],sparce_y[test_id],sample_weight[test_id])
+                            validation_data = (x_data_test,sparce_y_test,sample_weight[test_id])
 
 
                     init_trn_desc = model.fit(x_data,y_sparse,
@@ -364,8 +401,12 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
 
                     #print model_files
 
-                    if np.min(init_trn_desc.history[monitor]) < best_loss:
-                        best_init = init
+                    if self.monitor is 'sp':
+                        if np.max(init_trn_desc.history[self.monitor]) > best_sp:
+                            best_init = init
+                    else:
+                        if np.min(init_trn_desc.history[self.monitor]) < best_loss:
+                            best_init = init
 
 
             if self.train_log:
@@ -373,10 +414,8 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                                                        choose_key=best_init,
                                                        path_rename_file=os.path.join(self.get_params()['dir'],'log_train.csv'))
 
-            if not sp_index in self.metrics:
-                self.model = load_model(self.mc_kwargs['filepath'])
-            else:
-                self.model = load_model(self.mc_kwargs['filepath'], custom_objects={'sp_index': sp_index})
+            
+            self.model = load_model(self.mc_kwargs['filepath'])
 
 
             return self
@@ -386,7 +425,19 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
         if self.model is None:
             raise Exception('use \'fit\' function first')
 
-        preproc_X = self._preprocess(X)
+        preproc_X = self.scaler_.transform(X)
+        
+        if False:#len(self.classes_) == 2:
+            #class and not class
+            pred = self.model.predict(preproc_X)
+            pred = np.array(map(lambda x:x[1],pred))
+
+            if predict is 'sparce':
+                return pred
+            else:
+                threshold = 0
+                # if sample is higher then threshold, this sample belongs to class 1 otherwise 0
+                return np.array(map(lambda x: 1 if x >= threshold else 0,pred))
 
         if predict is 'sparce':
             return self.model.predict(preproc_X)
@@ -401,7 +452,26 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
         preproc_X = self._preprocess(X)
         return self.model.predict_proba(preproc_X)
 
-    def decision_function(self,X,predict='classes'):
+    def decision_function(self,X,predict='sparce'):
+
+
+        if len(self.classes_) == 2:
+            #class and not class
+
+            if self.model is None:
+                raise Exception('use \'fit\' function first')
+
+            preproc_X = self._preprocess(X)
+
+            pred = self.model.predict(preproc_X)
+            pred = np.array(map(lambda x:x[1],pred))
+
+            if predict is 'sparce':
+                return pred
+            else:
+                threshold = 0
+                # if sample is higher then threshold, this sample belongs to class 1 otherwise 0
+                return np.array(map(lambda x: 1 if x >= threshold else 0,pred))
         return self.predict(X,predict=predict)
 
     def score(self,X,y=None):

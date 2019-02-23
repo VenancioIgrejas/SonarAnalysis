@@ -10,8 +10,21 @@ import numpy as np
 
 from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 from itertools import cycle
+
+from sklearn.utils import check_X_y
 from sklearn.metrics import confusion_matrix
+
+
+def savefig(plt,filename,verbose=1):
+    plt.savefig(filename,
+                bbox_inches = 'tight',
+                pad_inches = 0)
+    if verbose > 0:
+        print("figure was saved in {0} file".format(filename))
+
+
 
 #autor: Pedro Lisboa
 #github: https://github.com/pedrolisboa
@@ -275,3 +288,192 @@ def pointplot_df(self,dataframe,x,y,title='title',x_label='x',y_label='y',filena
 
     if not filename is None:
         plt.savefig(filename)
+
+
+def hist_csv(df):
+    fig = plt.figure(figsize=(6,4))
+    nbins = 20
+
+    for idx in range(6):
+       ax = plt.subplot(2,3, idx+1)
+       if idx == 0:
+           bins = np.linspace(df['ClassEspe(valor)'].min(),df['ClassEspe(valor)'].max(),nbins)
+           n, bins, patches = ax.hist(df['ClassEspe(valor)'].values,bins=bins,alpha=0.8, normed=1)
+       else:
+           buf = 'ClassEspe(valor).%i'%(idx)
+           bins = np.linspace(df['ClassEspe(valor).%i'%(idx)].min(),df['ClassEspe(valor).%i'%(idx)].max(),nbins)
+           n, bins, patches = ax.hist(df['ClassEspe(valor).%i'%(idx)].values,bins=bins,alpha=0.8, normed=1)
+       ax.grid()
+
+
+def distOutputLayer(predict,trgt,cols_label=None,rows_label=None,x_label=None,
+                    figsize=(12,8), adjustplot_kws={},kde=False,suptitle=None,suptitle_kwg={}):
+    """
+    plot the distribution of the values of each output neuron according to each classes
+
+    Parameters
+    ----------
+    predict : nd-array (n_samples,n_neurons)
+        array-like of neurons output where the first column correspond to first neuron of output layer in MLP
+    trgt : nd-array (n_samples,)
+        target in a Neural Network
+
+    cols_label : list
+        list of string with the name of each Class, default: ['Class 1','Class 2','Class 3', ...]
+
+    rows_label : list
+        list of string with the name of each neuron, default: ['Neuron 1','Neuron 2','Neuron 3', ...]
+
+
+    """
+    predict, trgt = check_X_y(predict, trgt)
+
+    n_neurons = predict.shape[1]
+
+    fig, axes = plt.subplots(nrows=n_neurons, ncols=n_neurons, figsize=figsize)
+
+    if bool(adjustplot_kws):
+        #not empty
+        fig.subplots_adjust(**adjustplot_kws)
+    else:
+        #default adjust
+        fig.subplots_adjust(left=None, bottom=None, right=2, top=None, wspace=None, hspace=0.4)
+
+    if not suptitle is None:
+        fig.suptitle(suptitle,**suptitle_kwg)
+
+    if cols_label is None:
+        cols_label = ['Class {}'.format(col+1) for col in range(n_neurons)]
+
+    if rows_label is None:
+        rows_label = ['Neuron {}'.format(row+1) for row in range(n_neurons)]
+
+    for n_col in range(n_neurons):
+        for n_row, iclass in enumerate(np.unique(trgt)):
+            ax = axes[n_col][n_row]
+            neuron_output = predict[:,n_col]
+            values = neuron_output[trgt==iclass]
+            sns.distplot(values,ax=ax,kde=kde)
+
+            ax.grid()
+
+    #set label of column in each column graphics
+    for ax, col in zip(axes[0], cols_label):
+        ax.set_title(col)
+
+    for ax, row in zip(axes[:,0], rows_label):
+        ax.set_ylabel(row, rotation=90, size='large')
+
+    if not x_label is None:
+        for ax, row in zip(axes[n_neurons-1,:], x_label):
+            ax.set_xlabel(row, size='large')
+
+    fig.tight_layout()
+
+    return fig,axes
+
+
+def snsConfusionMatrix(cm_norm,ax,annot=None,y_labels='auto',x_labels='auto',language='en',
+                       title_kwg={},ylabel_kwg={},
+                       xlabel_kwg={},total_col=None,sns_kwg={}):
+    
+    language_avaible = ['en','pt']
+
+    if not language in language_avaible:
+        raise ValueError('expected one of {0}, but received {1}'.format(language,language_avaible))
+
+    if language is 'pt':
+        title = {'label':u"Matrix de Confusao",
+                 'fontweight':'bold',
+                 'fontsize':15}
+
+        ylabel = {'ylabel':'Alvo Verdadeiro',
+                  'fontweight':'bold',
+                  'fontsize':15}
+
+        xlabel = {'xlabel':u'Predicao do Alvo',
+                  'fontweight':'bold',
+                  'fontsize':15}
+    else:
+        title = {'label':u'Confusion Matrix',
+                 'fontweight':'bold',
+                 'fontsize':15}
+
+        ylabel = {'ylabel':'True Label',
+                  'fontweight':'bold',
+                  'fontsize':15}
+
+        xlabel = {'xlabel':u'Predicted Label',
+                  'fontweight':'bold',
+                  'fontsize':15}
+
+    title.update(title_kwg)
+    ylabel.update(ylabel_kwg)
+    xlabel.update(xlabel_kwg)
+    
+    if not isinstance(cm_norm,list):
+
+        n_rows,n_col = cm_norm.shape
+
+        if annot is None:
+            annot = np.asarray(["{0:.2f}%".format(value) 
+             for value in 100*cm_norm.flatten()]
+          ).reshape(n_rows,n_col)
+
+        sns.heatmap(100*cm_norm,yticklabels=y_labels,xticklabels=x_labels,
+            vmin=0.0,vmax=100.0,annot=annot,
+            fmt='s',linewidths=.5,linecolor='black',
+            cmap=plt.cm.Greys,ax=ax,**sns_kwg)
+
+        ax.set_title(**title)
+        ax.set_ylabel(**ylabel)
+        ax.set_xlabel(**xlabel)
+
+        return
+
+
+
+    cm_norm_mean = np.array(cm_norm).mean(axis=0)
+    cm_norm_std = np.array(cm_norm).std(axis=0)
+
+    cm_norm_mean = 100*cm_norm_mean
+
+    cm_norm_std = 100*cm_norm_std
+
+    n_rows,n_col = cm_norm_mean.shape
+
+    labels_cm = np.asarray(["{0:.2f}%\n+-\n{1:.2f}%".format(cm_mean,cm_std) 
+             for cm_mean,cm_std in zip(cm_norm_mean.flatten(),cm_norm_std.flatten())]
+          ).reshape(n_rows,n_col)
+
+    if annot is None:
+        annot = labels_cm
+
+    if not total_col is None:
+        total_col_mean = np.array(total_col).mean(axis=0)
+        total_col_std = np.array(total_col).std(axis=0)
+        
+        labels_total = np.asarray(["{0:.0f}\n+-\n{1:.0f}".format(mean,std) 
+               for mean,std in zip(total_col_mean,total_col_std)]
+                        ).reshape(n_rows,1)
+
+        annot = np.hstack((labels_cm,labels_total))
+
+        cm_norm_mean = np.hstack((cm_norm_mean,np.zeros((n_rows,1))))
+
+
+    sns.heatmap(cm_norm_mean,yticklabels=y_labels,xticklabels=x_labels,
+            vmin=0.0,vmax=100.0,annot=annot,
+            fmt='s',linewidths=.5,linecolor='black',
+            cmap=plt.cm.Greys,ax=ax,**sns_kwg)
+
+
+
+    ax.set_title(**title)
+    ax.set_ylabel(**ylabel)
+    ax.set_xlabel(**xlabel)
+
+    return
+
+
+
