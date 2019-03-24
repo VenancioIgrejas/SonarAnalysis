@@ -14,7 +14,8 @@ class AdaBoost(AdaBoostClassifier):
                  n_estimators=50,
                  learning_rate=1.0,
                  algorithm='SAMME.R',
-                 random_state=None):
+                 random_state=None,
+                 dir='.'):
         super(AdaBoost, self).__init__(base_estimator=base_estimator,
                                        n_estimators=n_estimators,
                                        learning_rate=learning_rate,
@@ -23,6 +24,7 @@ class AdaBoost(AdaBoostClassifier):
         self.le_ = None
         self.n_est = 0
         self.fit_kwarg = {}
+        self.dir=dir
 
 
     def _make_estimator(self, append=True, random_state=None):
@@ -32,14 +34,15 @@ class AdaBoost(AdaBoostClassifier):
         """
         estimator = clone(self.base_estimator_)
 
-        path = getattr(estimator,'dir') + '{0:02d}_estimator/'.format(self.n_est)
+        if hasattr(estimator,'dir'):
+            path = self.dir + '/{0:02d}_estimator'.format(self.n_est)
+            if not os.path.exists(path):
+                os.makedirs(path)
+
+            estimator.set_params(**dict([('dir',path)]))
 
         self.n_est = self.n_est+1
-
-        if not os.path.exists(path):
-            os.makedirs(path)
-
-        estimator.set_params(**dict([('dir',path)]))
+        
 
         if random_state is not None:
             _set_random_states(estimator, random_state)
@@ -49,16 +52,16 @@ class AdaBoost(AdaBoostClassifier):
 
         return estimator
 
-    def set_fit_param(self,**kwarg):
-        self.fit_kwarg = kwarg
-        return self
+    # def set_fit_param(self,**kwarg):
+    #     self.fit_kwarg = kwarg
+    #     return self
 
     def _boost_discrete(self, iboost, X, y, sample_weight, random_state):
         """Implement a single boost using the SAMME discrete algorithm."""
         estimator = self._make_estimator(random_state=random_state)
         # beginning of altered part of the code by me
-        fit_kwarg = self.fit_kwarg
-        estimator.fit(X, y, sample_weight=sample_weight,**fit_kwarg)
+        print sample_weight
+        estimator.fit(X, y, sample_weight=sample_weight)
 
         # end of altered part of the code by me
         y_predict = estimator.predict(X)
@@ -103,43 +106,43 @@ class AdaBoost(AdaBoostClassifier):
 
         return sample_weight, estimator_weight, estimator_error
 
-    def set_classes(self,y):
-        """ Enconde label"""
-        self.le_ = LabelEncoder().fit(y)
-        self.classes_ = self.le_.classes_
+    # def set_classes(self,y):
+    #     """ Enconde label"""
+    #     self.le_ = LabelEncoder().fit(y)
+    #     self.classes_ = self.le_.classes_
 
-    def _predict_mjvt(self,X):
-        """Collect results from clf.predict calls. """
-        return np.asarray([clf.predict(X) for clf in self.estimators_]).T
+    # def _predict_mjvt(self,X):
+    #     """Collect results from clf.predict calls. """
+    #     return np.asarray([clf.predict(X) for clf in self.estimators_]).T
     
-    def predict_maj(self,X):
-        """ Predict class labels for X using majory voting.
-        Parameters
-        ----------
-        X : {array-like, sparse matrix}, shape = [n_samples, n_features]
-            Training vectors, where n_samples is the number of samples and
-            n_features is the number of features.
-        Returns
-        ----------
-        maj : array-like, shape = [n_samples]
-            Predicted class labels.
-        """
+    # def predict_maj(self,X):
+    #     """ Predict class labels for X using majory voting.
+    #     Parameters
+    #     ----------
+    #     X : {array-like, sparse matrix}, shape = [n_samples, n_features]
+    #         Training vectors, where n_samples is the number of samples and
+    #         n_features is the number of features.
+    #     Returns
+    #     ----------
+    #     maj : array-like, shape = [n_samples]
+    #         Predicted class labels.
+    #     """
 
-        if self.le_ is None:
-            raise Exception('call first set_classes function')
+    #     if self.le_ is None:
+    #         raise Exception('call first set_classes function')
 
-        predictions = self._predict_mjvt(X)
-        maj = np.apply_along_axis(lambda x: np.argmax(
-                                        np.bincount(x)),
-                                        axis=1,arr=predictions)
-        return maj
-        maj = self.le_.inverse_transform(maj)
+    #     predictions = self._predict_mjvt(X)
+    #     maj = np.apply_along_axis(lambda x: np.argmax(
+    #                                     np.bincount(x)),
+    #                                     axis=1,arr=predictions)
+    #     return maj
+    #     maj = self.le_.inverse_transform(maj)
 
-        return maj
+    #     return maj
 
-    def predict(self,X,mode='majory'):
+    # def predict(self,X,mode='majory'):
 
-        if mode is 'majory':
-            return self.predict_maj(X)
+    #     if mode is 'majory':
+    #         return self.predict_maj(X)
 
-        raise ValueError("mode variable recive {0} but expected 'majory' ".format(mode))
+    #     raise ValueError("mode variable recive {0} but expected 'majory' ".format(mode))

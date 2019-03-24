@@ -764,3 +764,104 @@ class HierarqNet(object):
         global_pred = map(lambda x:x-1,global_pred)
 
         return global_pred
+
+class SpecialistBase(object):
+    """docstring for SpecialistBase"""
+    def __init__(self, estimator, classes_name, file=None, verbose=False):
+        self.classes_name = classes_name
+        self.file = file
+        self.dict_df = {}
+        self.master_table = None
+        self.estimator = estimator
+        self.verbose = verbose
+
+    def _add(self,name,value):
+        self.dict_df[name] = value
+        return
+
+    def _add_df(self,name,value):
+        self.master_table.loc[:,name] = Series(value, index=self.master_table.index)
+        return
+
+    def _add_class(self,name,classe_binary,trgt):
+        self.dict_df['target'] = trgt
+        new_trgt = -np.ones(shape=trgt.shape,dtype=int)
+        new_trgt[trgt==classe_binary] = 1
+        new_trgt[trgt!=classe_binary] = 0
+        self.dict_df[name] = new_trgt
+
+    def _load_df(self):
+
+        if not self.file is None:
+            self.master_table = pd.read_csv(self.file+'/master_table.csv')
+
+    def _save_df(self):
+        if not self.file is None:
+            self.master_table.to_csv(self.file+'/master_table.csv',index=False)
+        return
+
+    def _check_col(self,name):
+
+        if not self.master_table is None:
+            if name in self.master_table.columns:
+                return True
+            return False
+
+        return None
+
+    def _create_df(self):
+        if not self.dict_df:
+            #dict is empty
+            raise ValueError("somethings bad happens, dict_df is None")
+
+        self.master_table = pd.DataFrame(self.dict_df)
+        return
+
+    def _mount(self,trgt,load=False):
+        
+        if load:
+            self._load_df()
+            return
+
+        for iclass,name in enumerate(self.classes_name):
+            self._add_class(name=name, classe_binary=iclass, trgt=trgt)
+        return
+
+    def _prepare_table(self,y=None,load=False):
+        
+        if (load==False):
+            self._mount(y)
+            self._create_df()
+        elif load==True:
+            self._load_df()
+        else:
+            raise ValueError("invalid paramns 'y' and 'load'")
+        return
+
+    def _fit_member(self, member, X, y, train_id=None, test_id=None, ifold=None):
+        estimator = clone(self.estimator)
+        if hasattr(estimator,'validation_id') & hasattr(estimator,'dir'):
+            folder = self.file + '/fold{0:02d}'.format(ifold) + '/{0}'.format(member)
+            if not os.path.exists(folder):
+                os.makedirs(folder)
+            estimator.set_params(**dict([('dir',folder),('validation_id',(train_id,test_id))]))
+        estimator.fit(X, y)
+        return estimator
+
+
+
+    def fit_member(self, member, X, y):
+        df = self.master_table
+        y_new = df[df[member]!=-1][member].values
+        ids = df[df[member]!=-1].index.values
+        X_new = X[ids]
+
+        return self._fit_member(member, X_new, y_new)
+
+    
+
+
+    def fit(self, X, y):
+        self._mount(y)
+        self._create_df()
+        

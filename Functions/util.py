@@ -85,8 +85,12 @@ def inverse_dict(dicto):
 
 #function that transform some columm with data of .mat file in DataFrame
 def pydata(mat,col=0,):
-    mdata = mat['lofar_data']
-    data1 = mdata[0][col]
+    mdata = mat[sorted(mat.keys())[-1]]
+    if mdata.shape[0] ==1:
+        data1 = mdata[0][col]
+    else:
+        data1 = mdata
+
     dataframe = pd.DataFrame(np.array(data1).transpose())#,dtype=np.int64)
     logData = dataframe.isnull()
     listNaN = logData.index[logData[1] == True].tolist()

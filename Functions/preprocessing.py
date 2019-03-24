@@ -31,7 +31,7 @@ class CrossValidation(object):
         self.estimator = estimator
 
     def get_folder(self,ifold=0):
-        path = os.path.join(self.dir,"fold{0:02d}".format(ifold)) + '/'
+        path = os.path.join(self.dir,"fold{0:02d}".format(ifold))
         if not os.path.exists(path):
             os.makedirs(path)
         return path

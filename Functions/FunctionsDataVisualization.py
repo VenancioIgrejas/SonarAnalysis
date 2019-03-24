@@ -350,10 +350,14 @@ def distOutputLayer(predict,trgt,cols_label=None,rows_label=None,x_label=None,
 
     for n_col in range(n_neurons):
         for n_row, iclass in enumerate(np.unique(trgt)):
+            if n_col==n_row:
+                color="r"
+            else:
+                color=None
             ax = axes[n_col][n_row]
             neuron_output = predict[:,n_col]
             values = neuron_output[trgt==iclass]
-            sns.distplot(values,ax=ax,kde=kde)
+            sns.distplot(values,ax=ax,kde=kde,color=color)
 
             ax.grid()
 
@@ -416,12 +420,12 @@ def snsConfusionMatrix(cm_norm,ax,annot=None,y_labels='auto',x_labels='auto',lan
         n_rows,n_col = cm_norm.shape
 
         if annot is None:
-            annot = np.asarray(["{0:.2f}%".format(value) 
-             for value in 100*cm_norm.flatten()]
+            annot = np.asarray(["{0:.2f}".format(value) 
+             for value in cm_norm.flatten()]
           ).reshape(n_rows,n_col)
 
-        sns.heatmap(100*cm_norm,yticklabels=y_labels,xticklabels=x_labels,
-            vmin=0.0,vmax=100.0,annot=annot,
+        sns.heatmap(cm_norm,yticklabels=y_labels,xticklabels=x_labels,
+            vmin=0.0,vmax=1.0,annot=annot,
             fmt='s',linewidths=.5,linecolor='black',
             cmap=plt.cm.Greys,ax=ax,**sns_kwg)
 
@@ -436,13 +440,13 @@ def snsConfusionMatrix(cm_norm,ax,annot=None,y_labels='auto',x_labels='auto',lan
     cm_norm_mean = np.array(cm_norm).mean(axis=0)
     cm_norm_std = np.array(cm_norm).std(axis=0)
 
-    cm_norm_mean = 100*cm_norm_mean
+    cm_norm_mean = cm_norm_mean
 
-    cm_norm_std = 100*cm_norm_std
+    cm_norm_std = cm_norm_std
 
     n_rows,n_col = cm_norm_mean.shape
 
-    labels_cm = np.asarray(["{0:.2f}%\n+-\n{1:.2f}%".format(cm_mean,cm_std) 
+    labels_cm = np.asarray(["{0:.2f}\n+-\n{1:.2f}".format(cm_mean,cm_std) 
              for cm_mean,cm_std in zip(cm_norm_mean.flatten(),cm_norm_std.flatten())]
           ).reshape(n_rows,n_col)
 
@@ -463,7 +467,7 @@ def snsConfusionMatrix(cm_norm,ax,annot=None,y_labels='auto',x_labels='auto',lan
 
 
     sns.heatmap(cm_norm_mean,yticklabels=y_labels,xticklabels=x_labels,
-            vmin=0.0,vmax=100.0,annot=annot,
+            vmin=0.0,vmax=1.0,annot=annot,
             fmt='s',linewidths=.5,linecolor='black',
             cmap=plt.cm.Greys,ax=ax,**sns_kwg)
 

@@ -20,11 +20,11 @@ from keras.utils import np_utils
 from keras.models import load_model
 
 from sklearn.model_selection import StratifiedKFold
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, LabelEncoder
 
 from keras import backend as K
 
-from Functions.callbackKeras import metricsAdd
+from Functions.callbackKeras import metricsAdd, StopTraining
 from Functions.preprocessing import class_weight_Keras
 
 from sklearn.base import BaseEstimator
@@ -91,7 +91,7 @@ class PCDCooperativeBase(object):
             m_str = '%s\n %s'%(m_str,'Obj: fitted')
         return m_str
 
-    def fit(self, inputdata, targetdata, trn_params=None, trn_tst_idx=None):
+    def fit(self, inputdata, targetdata, trn_params=None, trn_tst_idx=None, sample_weight=None):
         '''
             This function extracts the Cooperative Principal Components of Discrimination of a Dataset
 
@@ -204,12 +204,25 @@ class PCDCooperativeBase(object):
                         mode=trn_params.mode, 
                         restore_best_weights=True)
 
-                    callback_list.append(earlyStopping)
 
-                    csv_logger = callbacks.CSVLogger('training.csv')
+                    st = StopTraining(monitor=trn_params.monitor,restore_best_weights=True,
+                                      verbose=trn_params.train_verbose,patience=trn_params.patience,
+                                      min_delta=0.03)
+
+                    callback_list.append(st)
+
+
+
+                    csv_logger = callbacks.CSVLogger('%s/training.csv'%(self.dir))
 
                     callback_list.append(csv_logger)
 
+                    if sample_weight is None:
+                        class_weight = class_weight_Keras(targetdata[trainId])
+                        sample_weight_fit = sample_weight
+                    else:
+                        class_weight = None
+                        sample_weight_fit = sample_weight[trainId]
                     # Train model
                     init_trn_desc = model.fit(inputdata[trainId], targetdata_sparse[trainId],
                                               epochs=trn_params.n_epochs,
@@ -218,7 +231,8 @@ class PCDCooperativeBase(object):
                                               verbose=trn_params.train_verbose,
                                               validation_data=(inputdata[testId],
                                                                targetdata_sparse[testId]),
-                                              class_weight=class_weight_Keras(targetdata[trainId]),
+                                              class_weight=class_weight,
+                                              sample_weight=sample_weight_fit,
                                               shuffle=True)
 
                     if trn_params.monitor is 'sp':
@@ -232,9 +246,9 @@ class PCDCooperativeBase(object):
                         if trn_params.monitor is 'sp':
                             best_sp = np.max(init_trn_desc.history['sp'])
                         self.models[ipcd] = model
-                        df = pd.read_csv('training.csv')
+                        df = pd.read_csv('%s/training.csv'%(self.dir))
                         self.trn_descs[ipcd] = df
-                        os.remove("training.csv")
+                        os.remove('%s/training.csv'%(self.dir))
                         for idx in range(inputdata.shape[1]):
                             self.pcds[ipcd, idx] = model.layers[1].get_weights()[0][idx]
             else:
@@ -305,12 +319,22 @@ class PCDCooperativeBase(object):
                         mode=trn_params.mode, 
                         restore_best_weights=True)
 
-                    callback_list.append(earlyStopping)
+                    st = StopTraining(monitor=trn_params.monitor,restore_best_weights=True,
+                                      verbose=trn_params.train_verbose,patience=trn_params.patience,
+                                      min_delta=0)
 
-                    csv_logger = callbacks.CSVLogger('training.csv')
+                    callback_list.append(st)
+
+                    csv_logger = callbacks.CSVLogger('%s/training.csv'%(self.dir))
 
                     callback_list.append(csv_logger)
 
+                    if sample_weight is None:
+                        class_weight = class_weight_Keras(targetdata[trainId])
+                        sample_weight_fit = sample_weight
+                    else:
+                        class_weight = None
+                        sample_weight_fit = sample_weight[trainId]
                     # Train model
                     init_trn_desc = model.fit(inputdata[trainId], targetdata_sparse[trainId],
                                               epochs=trn_params.n_epochs,
@@ -319,7 +343,8 @@ class PCDCooperativeBase(object):
                                               verbose=trn_params.train_verbose,
                                               validation_data=(inputdata[testId],
                                                                targetdata_sparse[testId]),
-                                              class_weight=class_weight_Keras(targetdata[trainId]),
+                                              class_weight=class_weight,
+                                              sample_weight=sample_weight_fit,
                                               shuffle=True)
 
                     if trn_params.monitor is 'sp':
@@ -334,11 +359,14 @@ class PCDCooperativeBase(object):
                         if trn_params.monitor is 'sp':
                             best_sp = np.max(init_trn_desc.history['sp'])
                         self.models[ipcd] = model
-                        df = pd.read_csv('training.csv')
+
+                        df = pd.read_csv('%s/training.csv'%(self.dir))
                         self.trn_descs[ipcd] = df
-                        os.remove("training.csv")
+                        os.remove('%s/training.csv'%(self.dir))
                         for idx in range(inputdata.shape[1]):
                             self.pcds[ipcd, idx] = model.layers[2].get_weights()[0][idx]
+
+        #K.clear_session()       
 
     def save(self, path=".",filename="pcd_coop_obj"):
         # save models
@@ -389,9 +417,14 @@ class PCDCooperative(PCDCooperativeBase,BaseEstimator):
         self.trn_params = trn_params
         self.is_save = is_save
 
-    def fit(self, inputdata, targetdata):#, trn_tst_idx=None):
+    def fit(self, inputdata, targetdata, sample_weight=None):#, trn_tst_idx=None):
 
         self.scaler_ = StandardScaler()
+
+        # for AdaBoostClassifier of Sklearn (without that, this classifier does not work)
+        self.le_ = LabelEncoder().fit(targetdata)
+        
+        self.classes_ = self.le_.classes_
 
         if not self.validation_id[0] is None:
             trn_tst_idx = self.validation_id
@@ -406,7 +439,8 @@ class PCDCooperative(PCDCooperativeBase,BaseEstimator):
         fit_base =  super(PCDCooperative, self).fit(inputdata=fit_inputdata, 
                                         targetdata=targetdata, 
                                         trn_params=self.trn_params, 
-                                        trn_tst_idx=trn_tst_idx)
+                                        trn_tst_idx=trn_tst_idx,
+                                        sample_weight=sample_weight)
         if self.is_save:
             self.save(path=self.dir)
 
@@ -414,7 +448,7 @@ class PCDCooperative(PCDCooperativeBase,BaseEstimator):
 
     def predict(self, X ,y=None, predict='classes'):
 
-        X_proc = self.scaler_.transform(X)
+        preproc_X = self.scaler_.transform(X)
 
         df_log = pd.concat(self.trn_descs)
 
@@ -423,12 +457,13 @@ class PCDCooperative(PCDCooperativeBase,BaseEstimator):
         self.best_pcd = np.argmax(sp_pcd)
         self.best_sp = sp_pcd[np.argmax(sp_pcd)]
 
-        pred_sparce = predict(X_proc)
-
         if predict is 'sparce':
-            return self.models[self.best_pcd].predict(preproc_X)
+            pred = self.models[self.best_pcd].predict(preproc_X)
         else:
-            return self.models[self.best_pcd].predict_classes(preproc_X)        
+            pred = np.argmax(self.models[self.best_pcd].predict(preproc_X),axis=1)
+            pd.Series(pred).to_csv(self.dir + '/predict.csv',index=False)
+
+        return pred
         
 
 class NLPCA(object):

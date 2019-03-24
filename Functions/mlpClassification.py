@@ -30,7 +30,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler,OneHotEncoder,LabelEncoder
 
 from Functions import TrainParameters
-from Functions.callbackKeras import metricsAdd
+from Functions.callbackKeras import metricsAdd, StopTraining
 from Functions.util import check_mount_dict,get_objects,update_paramns,file_exist,best_file
 
 from sklearn.base import BaseEstimator, is_classifier, clone
@@ -317,8 +317,8 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                     if 'sp' in self.metrics:
                         self.metrics.remove('sp')
 
-                    if self.monitor is 'sp':
-                        callbacks_list.append(metricsAdd('sp',self.verbose))
+                    
+                    callbacks_list.append(metricsAdd('sp',self.verbose))
                         #self.metrics.append(sp_index)
 
                         #self.es_kwargs['monitor'] = sp_index
@@ -330,9 +330,17 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
 
 
                     if self.early_stopping:
-                        callbacks_list.append(get_objects(keras.callbacks,
-                                                          'EarlyStopping',
-                                                          self.es_kwargs))
+                        #callbacks_list.append(get_objects(keras.callbacks,
+                        #                                  'EarlyStopping',
+                        #                                  self.es_kwargs))
+
+                        st = StopTraining(restore_best_weights=self.es_kwargs['restore_best_weights'],
+                                          verbose=self.es_kwargs['verbose'],
+                                          patience=self.es_kwargs['patience'],
+                                          min_delta=0)
+
+                        callbacks_list.append(st)
+
 
                     if self.save_best_model:
                         self.mc_kwargs['filepath'] = os.path.join(self.get_params()['dir'],'best_model.h5')

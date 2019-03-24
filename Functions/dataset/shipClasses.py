@@ -41,26 +41,30 @@ class MountData(object):
 
             classes.append(loadmat(os.path.join(data_path,self.file_lofar)))
 
+        self.classes = classes
+
+
+        
         #treating the data
         alldata={}
         for i in range(number_of_classes):
-            data = [pydata(classes[i],eachCell) for eachCell in range(classes[i]['lofar_data'].shape[1])]
-            alldata[i] = pd.concat(data)
-
+            shape_classes = classes[i][sorted(classes[i].keys())[-1]].shape
+            if shape_classes[0] == 1:
+                data = [pydata(classes[i],eachCell) 
+                        for eachCell in range(classes[i][sorted(classes[i].keys())[-1]].shape[1])]
+                alldata[i] = pd.concat(data)
+            else:
+                alldata[i] = pydata(classes[i])
 
         self.data = pd.concat([pd.DataFrame(alldata[key]) for key in range(number_of_classes)]).values
         #creating trgt of data
         eachtrgt = []
-        value = 0
-        for key_data in alldata:
-            numRow = alldata[key_data].shape[0]
-            for i in range(numRow):
-                eachtrgt.append(value)
-            value = value +1
 
-        trgt = np.array(eachtrgt)
+        for i in range(number_of_classes):
+            numRow = alldata[i].shape[0]
+            eachtrgt.append(i*np.ones(shape=(numRow,)))
 
-        self.trgt = trgt
+        self.trgt = np.hstack(eachtrgt)
 
         #creating labels classes
         if  class_label is None:
@@ -101,7 +105,7 @@ class LoadData(object):
 
     """
     def __init__(self,data_file=None,database='24classes', n_pts_fft=1024, decimation_rate=3,
-                 spectrum_bins_left=400,dev=False):
+                 spectrum_bins_left=400,dev=False,dev_size=100):
         #super(LoadData, self).__init__()
 
         m_time = time.time()
@@ -110,6 +114,7 @@ class LoadData(object):
         self.n_pts_fft = n_pts_fft
         self.decimation_rate = decimation_rate
         self.spectrum_bins_left = spectrum_bins_left
+        self.dev_size=dev_size
         self.dev = dev
 
 
@@ -135,7 +140,7 @@ class LoadData(object):
             print '[+] Time to read data file: '+str(m_time)+' seconds'
 
             if self.dev:
-                data, trgt = self._dev_dataset(data, trgt)
+                data, trgt = self._dev_dataset(data, trgt,size_samples=self.dev_size)
 
             # correct format
 
