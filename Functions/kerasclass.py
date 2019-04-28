@@ -217,8 +217,6 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                       if isinstance(icallback, keras.callbacks.ModelCheckpoint):
                         flag_modelcheckpoint = True
                         icallback.filepath = str(os.path.join(self.get_params()['dir'],'best_model.{epoch:02d}.h5'))
-                        print icallback.filepath
-
 
 
                     if not self.callbacks_list:
@@ -239,7 +237,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
 
 
             if flag_modelcheckpoint:
-              self.model = load_model(self.mc_kwargs['filepath'])
+              self.model = load_model(icallback.filename)
             else:
               self.model = best_model
 
@@ -248,64 +246,3 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
 
     def predict(self, x):
         return self.model.predict(x)
-    # def predict(self,X,y=None,predict='classes'):
-    #
-    #     if self.model is None:
-    #         raise Exception('use \'fit\' function first')
-    #
-    #     preproc_X = self.scaler_.transform(X)
-    #
-    #     if False:#len(self.classes_) == 2:
-    #         #class and not class
-    #         pred = self.model.predict(preproc_X)
-    #         pred = np.array(map(lambda x:x[1],pred))
-    #
-    #         if predict is 'sparce':
-    #             return pred
-    #         else:
-    #             threshold = 0
-    #             # if sample is higher then threshold, this sample belongs to class 1 otherwise 0
-    #             return np.array(map(lambda x: 1 if x >= threshold else 0,pred))
-    #
-    #     if predict is 'sparce':
-    #         return self.model.predict(preproc_X)
-    #     else:
-    #         return self.model.predict_classes(preproc_X)
-
-    def predict_proba(self,X):
-
-        if self.model is None:
-            raise Exception('use \'fit\' function first')
-
-        preproc_X = self._preprocess(X)
-        return self.model.predict_proba(preproc_X)
-
-    def decision_function(self,X,predict='sparce'):
-
-
-        if len(self.classes_) == 2:
-            #class and not class
-
-            if self.model is None:
-                raise Exception('use \'fit\' function first')
-
-            preproc_X = self._preprocess(X)
-
-            pred = self.model.predict(preproc_X)
-            pred = np.array(map(lambda x:x[1],pred))
-
-            if predict is 'sparce':
-                return pred
-            else:
-                threshold = 0
-                # if sample is higher then threshold, this sample belongs to class 1 otherwise 0
-                return np.array(map(lambda x: 1 if x >= threshold else 0,pred))
-        return self.predict(X,predict=predict)
-
-    def score(self,X,y=None):
-
-        if self.model is None:
-            raise Exception('use \'fit\' function first')
-
-        preproc_X = self._preprocess(X)
-        return self.model.evaluate(preproc_X,y)
