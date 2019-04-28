@@ -24,7 +24,7 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 
 from keras import backend as K
 
-from Functions.callbackKeras import metricsAdd, StopTraining
+from Functions.callbackKeras import metricsAdd, StopTraining, EarlyStoppingKeras
 from Functions.preprocessing import class_weight_Keras
 
 from sklearn.base import BaseEstimator
@@ -198,18 +198,23 @@ class PCDCooperativeBase(object):
 
 
                     # early stopping to avoid overtraining
-                    earlyStopping = callbacks.EarlyStopping(
-                        monitor=trn_params.monitor, patience=trn_params.patience,
+                    earlyStopping = EarlyStoppingKeras(
+                        monitor=trn_params.monitor, patience=trn_params.patience,min_delta=0,
                         verbose=trn_params.train_verbose, 
                         mode=trn_params.mode, 
                         restore_best_weights=True)
 
+                    # earlyStopping = callbacks.EarlyStopping(
+                    #     monitor=trn_params.monitor, patience=trn_params.patience,
+                    #     verbose=trn_params.train_verbose, 
+                    #     mode=trn_params.mode, 
+                    #     restore_best_weights=True)
 
-                    st = StopTraining(monitor=trn_params.monitor,restore_best_weights=True,
-                                      verbose=trn_params.train_verbose,patience=trn_params.patience,
-                                      min_delta=0.03)
+                    # st = StopTraining(monitor=trn_params.monitor,restore_best_weights=True,
+                    #                   verbose=trn_params.train_verbose,patience=trn_params.patience,
+                    #                   min_delta=0)
 
-                    callback_list.append(st)
+                    callback_list.append(earlyStopping)
 
 
 
@@ -313,17 +318,23 @@ class PCDCooperativeBase(object):
 
 
                     # early stopping to avoid overtraining
-                    earlyStopping = callbacks.EarlyStopping(
-                        monitor=trn_params.monitor, patience=trn_params.patience,
+                    earlyStopping = EarlyStoppingKeras(
+                        monitor=trn_params.monitor, patience=trn_params.patience,min_delta=0,
                         verbose=trn_params.train_verbose, 
                         mode=trn_params.mode, 
                         restore_best_weights=True)
 
-                    st = StopTraining(monitor=trn_params.monitor,restore_best_weights=True,
-                                      verbose=trn_params.train_verbose,patience=trn_params.patience,
-                                      min_delta=0)
+                    # earlyStopping = callbacks.EarlyStopping(
+                    #     monitor=trn_params.monitor, patience=trn_params.patience,
+                    #     verbose=trn_params.train_verbose, 
+                    #     mode=trn_params.mode, 
+                    #     restore_best_weights=True)
 
-                    callback_list.append(st)
+                    # st = StopTraining(monitor=trn_params.monitor,restore_best_weights=True,
+                    #                   verbose=trn_params.train_verbose,patience=trn_params.patience,
+                    #                   min_delta=0)
+
+                    callback_list.append(earlyStopping)
 
                     csv_logger = callbacks.CSVLogger('%s/training.csv'%(self.dir))
 
@@ -355,7 +366,7 @@ class PCDCooperativeBase(object):
                     if bool_trn:
                         #print('\n\nval_loss:',np.min(init_trn_desc.history['val_loss']), '- best_loss:', best_loss,'\n\n')
                         best_init = i_init
-                        best_loss = np.min(init_trn_desc.history['val_loss'])
+                        best_loss = np.min(init_trn_desc.histor1y['val_loss'])
                         if trn_params.monitor is 'sp':
                             best_sp = np.max(init_trn_desc.history['sp'])
                         self.models[ipcd] = model

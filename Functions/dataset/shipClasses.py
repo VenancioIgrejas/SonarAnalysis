@@ -85,6 +85,9 @@ class MountData(object):
             print "save the dataset in {0} file".format(path + '.' + type_file)
             joblib.dump([self.data,self.trgt,self.class_label],path + '.' + type_file,compress=9)
 
+    def getData(self):
+        return self.data,self.trgt,self.class_label
+
 
 class LoadData(object):
     """ Load Dataset for analysis

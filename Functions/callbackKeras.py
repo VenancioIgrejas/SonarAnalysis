@@ -96,7 +96,7 @@ class StopTraining(EarlyStopping):
     
     def on_epoch_end(self, epoch, logs=None):
 
-        logs['best_epoch'] = 0
+        logs['return_weight'] = 0
 
         current = self.get_monitor_value(logs,self.monitor)
         if current is None:
@@ -117,7 +117,7 @@ class StopTraining(EarlyStopping):
                 self.best_s = current_second
                 if self.restore_best_weights :#and:
                     self.best_epoch = epoch
-                    logs['best_epoch'] = 1
+                    logs['return_weight'] = 1
                     self.best_weights = self.model.get_weights()
         else:
             self.wait += 1
@@ -143,5 +143,58 @@ class StopTraining(EarlyStopping):
                 'Early stopping conditioned on metric `%s` '
                 'which is not available. Available metrics are: %s' %
                 (monitor, ','.join(list(logs.keys()))), RuntimeWarning
+            )
+        return monitor_value
+
+
+class EarlyStoppingKeras(EarlyStopping):
+    def __init__(self, monitor='val_loss',min_delta=0, patience=0, verbose=0, mode='auto', baseline=None, restore_best_weights=False):
+        super(EarlyStoppingKeras,self).__init__(monitor=monitor, min_delta=min_delta, patience=patience, verbose=verbose, mode=mode, baseline=baseline, restore_best_weights=restore_best_weights)        
+    
+    def on_train_begin(self, logs=None):
+        # Allow instances to be re-used
+        self.wait = 0
+        self.stopped_epoch = 0
+        if self.baseline is not None:
+            self.best = self.baseline
+        else:
+            self.best = np.Inf if self.monitor_op == np.less else -np.Inf
+
+    def on_epoch_end(self, epoch, logs=None):
+
+        logs['return_weight'] = 0
+
+        current = self.get_monitor_value(logs)
+        if current is None:
+            return
+
+        if self.monitor_op(current - self.min_delta, self.best):
+            self.best = current
+            self.wait = 0
+            if self.restore_best_weights:
+                logs['return_weight'] = 1
+                self.best_weights = self.model.get_weights()
+        else:
+            self.wait += 1
+            if self.wait >= self.patience:
+                self.stopped_epoch = epoch
+                self.model.stop_training = True
+                if self.restore_best_weights:
+                    if self.verbose > 0:
+                        print('Restoring model weights from the end of '
+                              'the best epoch')
+                    self.model.set_weights(self.best_weights)
+
+    def on_train_end(self, logs=None):
+        if self.stopped_epoch > 0 and self.verbose > 0:
+            print('Epoch %05d: early stopping' % (self.stopped_epoch + 1))
+
+    def get_monitor_value(self, logs):
+        monitor_value = logs.get(self.monitor)
+        if monitor_value is None:
+            warnings.warn(
+                'Early stopping conditioned on metric `%s` '
+                'which is not available. Available metrics are: %s' %
+                (self.monitor, ','.join(list(logs.keys()))), RuntimeWarning
             )
         return monitor_value

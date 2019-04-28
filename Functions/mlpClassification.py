@@ -489,37 +489,3 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
 
         preproc_X = self._preprocess(X)
         return self.model.evaluate(preproc_X,y)
-
-
-class MLPSKlearn(MLPKeras):
-    def __init__(self,
-                  hidden_layer_sizes=(100,),
-                  activation=('tanh','softmax'),
-                  optimize='adam',
-                  op_adam_kwargs=None,
-                  loss='mean_squared_error',
-                  n_init=1,
-                  batch_size=None,
-                  epoch=200,
-                  shuffle=True,
-                  random_state=None,
-                  verbose=False,
-                  early_stopping = False,
-                  es_kwargs = None,
-                  save_best_model = False,
-                  mc_kwargs = None,
-                  metrics=['acc'],
-                  validation_fraction=0.0,
-                  dir='./'):
-
-        sup = super(MLPSKlearn,self)
-        sup.__init__(hidden_layer_sizes=hidden_layer_sizes,
-                     activation=activation,optimize=optimize,op_adam_kwargs=op_adam_kwargs,
-                     loss=loss,epoch=epoch,
-                     batch_size=batch_size,n_init=n_init,
-                     shuffle=shuffle,
-                     random_state=random_state,verbose=verbose,
-                     early_stopping=early_stopping,es_kwargs=es_kwargs,
-                     save_best_model=save_best_model,mc_kwargs=mc_kwargs,
-                     validation_fraction=validation_fraction,metrics=metrics,
-                     dir=dir)
