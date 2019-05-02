@@ -20,7 +20,7 @@ from sacred.observers import MongoObserver, FileStorageObserver
 ex = Experiment('MLP_Simples')
 
 ex.observers.append(MongoObserver.create(
-    url='mongodb://venancio:xxxxx@mongodb-1911-0.cloudclusters.net:10009/SonarAnalysis?authSource=admin&ssl=true&ssl_ca_certs=/home/venancio/Downloads/ca.pem',
+    url='mongodb://venancio:desiste@mongodb-1911-0.cloudclusters.net:10009/SonarAnalysis?authSource=admin&ssl=true&ssl_ca_certs=/home/venancio/Downloads/ca.pem',
     db_name='SonarAnalysis',
     ssl=True,
     ssl_ca_certs='/home/venancio/Downloads/ca.pem'
