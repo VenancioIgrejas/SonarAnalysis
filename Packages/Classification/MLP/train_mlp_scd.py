@@ -9,7 +9,7 @@ from Functions.StatFunctions import sp_index
 from Functions.preprocessing import CrossValidation
 from Functions.kerasclass import MLPKeras, Preprocessing
 from Functions.callbackKeras import metricsAdd, StopTraining
-from keras.callbacks import CSVLogger, ModelCheckpoint
+from keras.callbacks import CSVLogger, ModelCheckpoint, Callback
 
 from Functions.dataset.shipClasses import LoadData
 from Functions.dataset.path import BDControl
@@ -31,6 +31,16 @@ ex.observers.append(MongoObserver.create(
 ex.observers.append(FileStorageObserver.create(
     basedir=os.path.join(os.environ['OUTPUTDATAPATH'], 'Classification', 'bd', name_experimet)
 ))
+
+
+@ex.capture
+def my_metrics(_run, logs):
+    _run.log_scalar("loss", float(logs.get('loss')))
+
+
+class LogMetrics(Callback):
+    def on_epoch_end(self, epoch, logs=None):
+        my_metrics(logs=logs)
 
 
 @ex.config
@@ -165,6 +175,8 @@ def run(_run,
 
     mcheck = ModelCheckpoint(filepath='./', verbose=verbose_train, save_weights_only=False)
 
+    lg_met = LogMetrics()
+
     mlp = MLPKeras(hidden_layer_sizes=(neurons,),
                    activation=activation,
                    optimizer=optimizer,
@@ -176,7 +188,7 @@ def run(_run,
                                'verbose': verbose_train,
                                'validation_data': (X_scaler_test, y_sparce_test),
                                'class_weight': ppc.get_weights()},
-                   callbacks_list=[ma, st, csv, mcheck],
+                   callbacks_list=[ma, st, csv, mcheck, lg_met],
                    dir=folder)
 
     mlp.fit(X=X_scaler_train, y=y_sparce_train)
