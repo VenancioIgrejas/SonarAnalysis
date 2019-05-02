@@ -17,7 +17,9 @@ from Functions.dataset.path import BDControl
 from sacred import Experiment
 from sacred.observers import MongoObserver, FileStorageObserver
 
-ex = Experiment('MLP_Simples')
+name_experimet = 'MLP_Simples'
+
+ex = Experiment(name_experimet)
 
 ex.observers.append(MongoObserver.create(
     url='mongodb://venancio:desiste@mongodb-1911-0.cloudclusters.net:10009/SonarAnalysis?authSource=admin&ssl=true&ssl_ca_certs=/home/venancio/Downloads/ca.pem',
@@ -27,7 +29,7 @@ ex.observers.append(MongoObserver.create(
 ))
 
 ex.observers.append(FileStorageObserver.create(
-    basedir=os.path.join(os.environ['OUTPUTDATAPATH'], 'Classification', 'bd')
+    basedir=os.path.join(os.environ['OUTPUTDATAPATH'], 'Classification', 'bd', name_experimet)
 ))
 
 
