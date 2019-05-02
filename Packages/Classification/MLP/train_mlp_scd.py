@@ -8,7 +8,7 @@ from Functions.StatFunctions import sp_index
 
 from Functions.preprocessing import CrossValidation
 from Functions.kerasclass import MLPKeras, Preprocessing
-from Functions.callbackKeras import metricsAdd, StopTraining
+from Functions.callbackKeras import metricsAdd, StopTraining, EarlyStoppingKeras
 from keras.callbacks import CSVLogger, ModelCheckpoint, Callback
 
 from Functions.dataset.shipClasses import LoadData
@@ -174,6 +174,8 @@ def run(_run,
                       patience=25,
                       min_delta=10 ^ -4)
 
+    es_keras = EarlyStoppingKeras()
+
     ma = metricsAdd('sp', verbose=verbose_train)
 
     csv = CSVLogger(filename='./')
@@ -193,7 +195,7 @@ def run(_run,
                                'verbose': verbose_train,
                                'validation_data': (X_scaler_test, y_sparce_test),
                                'class_weight': ppc.get_weights()},
-                   callbacks_list=[ma, st, csv, mcheck, lg_met],
+                   callbacks_list=[ma, es_keras, csv, mcheck, lg_met],
                    dir=folder)
 
     mlp.fit(X=X_scaler_train, y=y_sparce_train)
