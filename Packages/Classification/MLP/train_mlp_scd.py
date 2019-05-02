@@ -200,7 +200,7 @@ def run(_run,
     ppc.set_transform(X=all_data, y=all_trgt, fit=False)
     X_scaler_all = ppc.get_transform()
 
-    pred = mlp.predict(X=X_scaler_all)
+    pred = mlp.predict(x=X_scaler_all)
 
     pd.DataFrame(pred, columns=[
         'neuron_{0}'.format(i) for i in range(pred.shape[1])
