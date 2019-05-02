@@ -67,7 +67,6 @@ def run(_run,
         ifold,
         verbose_train,
         verbose):
-
     analysis_name = 'Classification'
 
     data_path = os.environ['OUTPUTDATAPATH']
@@ -80,7 +79,6 @@ def run(_run,
     all_data, all_trgt = dt_lofar_power.getData()
 
     metrics = ['acc', 'sp']
-
 
     info_net = {'weight': weights, 'n_inits': n_init, 'n_neurons': neurons,
                 'optmizerAlgorithm': optimizer, 'n_folds': folds,
@@ -103,6 +101,8 @@ def run(_run,
     if not os.path.exists(results_path_specific):
         os.makedirs(results_path_specific)
 
+    _run.info["Path_father"] = results_path_specific
+
     # save configuration inside of path case something wrong happen
     with open(results_path_specific + '/info_net.json', 'w') as fp:
         json.dump(info_net, fp)
@@ -116,6 +116,8 @@ def run(_run,
                          dir=results_path_specific)
 
     train_id, test_id, folder = cv.train_test_split(ifold=ifold)
+
+    _run.info["Path"] = folder
 
     # only for control of Net
     csv_master = folder + '/master_table.csv'
