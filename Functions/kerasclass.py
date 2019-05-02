@@ -150,7 +150,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
             filepath_bestmodel = str(os.path.join(self.get_params()['dir'],'best_model.h5'))
 
             if file_exist(filepath_bestmodel):
-                if self.verbose:print("model already exists in {0} file".format(filepath_bestmodel))
+                print("model already exists in {0} file".format(filepath_bestmodel))
                 self.model = load_model(str(filepath_bestmodel))
                 return self
 
@@ -162,7 +162,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
 
             for init in range(self.n_init):
 
-                    if self.verbose:print("[+] {0} of {1} inits".format(init+1,self.n_init))
+                    print("[+] {0} of {1} inits".format(init+1,self.n_init))
                     model = Sequential()
 
                     model.add(Dense(X.shape[1], input_dim=X.shape[1], activation='relu'))
