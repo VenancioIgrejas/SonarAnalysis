@@ -15,7 +15,7 @@ from Functions.dataset.shipClasses import LoadData
 from Functions.dataset.path import BDControl
 
 from sacred import Experiment
-from sacred.observers import MongoObserver
+from sacred.observers import MongoObserver, FileStorageObserver
 
 ex = Experiment('MLP_Simples')
 
@@ -24,6 +24,10 @@ ex.observers.append(MongoObserver.create(
     db_name='Development',
     ssl=True,
     ssl_ca_certs='/home/venancio/Downloads/ca.pem'
+))
+
+ex.observers.append(FileStorageObserver.create(
+    basedir=os.path.join(os.environ['OUTPUTDATAPATH'], 'Classification', 'bd')
 ))
 
 
