@@ -1,28 +1,8 @@
-import inspect
 import os
-import re
-import time
-import warnings
 import pandas as pd
-#import matplotlib.pyplot as plt
 from shutil import copyfile
-from abc import abstractmethod
-from itertools import product, cycle
-from warnings import warn
-#import seaborn as sns
 
-
-#import keras
 import numpy as np
-
-
-#from keras import Sequential, Model
-#from keras.layers import Dense, Activation
-#from keras.callbacks import ModelCheckpoint
-#from keras.models import load_model
-#from keras.utils import np_utils
-
-#from tensorflow import set_random_seed
 
 from sklearn.utils.class_weight import compute_class_weight
 from sklearn.base import ClassifierMixin
@@ -33,7 +13,11 @@ from Functions.util import file_exist
 from sklearn.base import BaseEstimator
 from keras.utils import np_utils
 
+import keras
 
+from keras import Sequential
+from keras.layers import Dense
+from keras.models import load_model
 
 
 
@@ -162,15 +146,6 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
         return pd.read_csv(os.path.join(self.get_params()['dir'],'log_train.csv'))
 
     def fit(self, X, y, sample_weight=None):
-            import keras
-
-            from keras import Sequential, Model
-            from keras.layers import Dense, Activation
-            from keras.callbacks import ModelCheckpoint
-            from keras.models import load_model
-            
-            
-            from tensorflow import set_random_seed
 
             filepath_bestmodel = str(os.path.join(self.get_params()['dir'],'best_model.h5'))
 
