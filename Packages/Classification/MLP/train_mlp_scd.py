@@ -177,9 +177,12 @@ def run(_run,
                    callbacks_list=[ma, st, csv, mcheck],
                    dir=folder)
 
-    mlp.fit(X=all_data, y=all_trgt)
+    mlp.fit(X=X_scaler_train, y=y_sparce_train)
 
-    pred = mlp.predict(X=all_data)
+    ppc.set_transform(X=all_data, y=all_trgt, fit=False)
+    X_scaler_all = ppc.get_transform()
+
+    pred = mlp.predict(X=X_scaler_all)
 
     pd.DataFrame(pred, columns=[
         'neuron_{0}'.format(i) for i in range(pred.shape[1])
