@@ -36,6 +36,10 @@ ex.observers.append(FileStorageObserver.create(
 @ex.capture
 def my_metrics(_run, logs):
     _run.log_scalar("loss", float(logs.get('loss')))
+    _run.log_scalar("acc", float(logs.get('acc')))
+    _run.log_scalar("val_loss", float(logs.get('val_loss')))
+    _run.log_scalar("val_acc", float(logs.get('val_acc')))
+    _run.log_scalar("SP", float(logs.get('sp')))
 
 
 class LogMetrics(Callback):
