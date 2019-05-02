@@ -1,5 +1,6 @@
 import inspect
 import os
+from shutil import copyfile
 import re
 import time
 import warnings
@@ -287,7 +288,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
             self.mc_kwargs['filepath'] = os.path.join(self.get_params()['dir'],'best_model.h5')
 
             if file_exist(self.mc_kwargs['filepath']):
-                print "model already exists in {0} file".format(self.mc_kwargs['filepath'])
+                print("model already exists in {0} file".format(self.mc_kwargs['filepath']))
                 self.model = load_model(self.mc_kwargs['filepath'])
                 return self
 
@@ -300,7 +301,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
 
                     callbacks_list = []
 
-                    print "[+] {0} of {1} inits".format(init+1,self.n_init)
+                    print("[+] {0} of {1} inits".format(init+1,self.n_init))
                     model = Sequential()
 
                     model.add(Dense(X.shape[1], input_dim=X.shape[1], activation='relu'))
@@ -418,9 +419,13 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
 
 
             if self.train_log:
-                self.lg_kwargs['filename'] = best_file(path_files=log_files,
-                                                       choose_key=best_init,
-                                                       path_rename_file=os.path.join(self.get_params()['dir'],'log_train.csv'))
+                copyfile(os.path.join(self.get_params()['dir'], 'log_train_init_{0}.csv'.format(best_init)),
+                         os.path.join(self.get_params()['dir'], 'log_best_from_{0}.csv'.format(best_init)))
+
+                copyfile(os.path.join(self.get_params()['dir'], 'log_best_from_{0}.csv'.format(best_init)),
+                         os.path.join(self.get_params()['dir'], 'log_train.csv'.format(best_init)))
+
+                self.lg_kwargs['filename'] = os.path.join(self.get_params()['dir'],'log_train.csv')
 
             
             self.model = load_model(self.mc_kwargs['filepath'])
