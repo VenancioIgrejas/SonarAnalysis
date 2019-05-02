@@ -174,7 +174,7 @@ def run(_run,
                       patience=25,
                       min_delta=10 ^ -4)
 
-    es_keras = EarlyStoppingKeras(patience=25, min_delta=10^-4)
+    es_keras = EarlyStoppingKeras(patience=25, min_delta=10^-4, restore_best_weights=True)
 
     ma = metricsAdd('sp', verbose=verbose_train)
 
