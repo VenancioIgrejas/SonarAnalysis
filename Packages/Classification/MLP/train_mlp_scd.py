@@ -153,11 +153,11 @@ def run(_run,
                       patience=25,
                       min_delta=10 ^ -4)
 
-    ma = metricsAdd('sp', verbose=1)
+    ma = metricsAdd('sp', verbose=verbose_train)
 
     csv = CSVLogger(filename='./')
 
-    mcheck = ModelCheckpoint(filepath='./', verbose=1, save_weights_only=False)
+    mcheck = ModelCheckpoint(filepath='./', verbose=verbose_train, save_weights_only=False)
 
     mlp = MLPKeras(hidden_layer_sizes=(neurons,),
                    activation=activation,
