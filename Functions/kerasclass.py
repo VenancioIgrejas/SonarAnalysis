@@ -25,22 +25,13 @@ import numpy as np
 #from tensorflow import set_random_seed
 
 from sklearn.utils.class_weight import compute_class_weight
-from sklearn.base import BaseEstimator, ClassifierMixin
-from sklearn.model_selection._search import BaseSearchCV, ParameterGrid, _check_param_grid
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler,OneHotEncoder,LabelEncoder
+from sklearn.base import ClassifierMixin
+from sklearn.preprocessing import StandardScaler
 
-from Functions import TrainParameters
-from Functions.callbackKeras import metricsAdd, StopTraining
-from Functions.util import check_mount_dict,get_objects,update_paramns,file_exist,best_file
+from Functions.util import file_exist
 
-from sklearn.base import BaseEstimator, is_classifier, clone
-from sklearn.base import MetaEstimatorMixin
-
+from sklearn.base import BaseEstimator
 from keras.utils import np_utils
-
-from lps_toolbox.metrics.classification import sp_index
-
 
 
 
@@ -138,6 +129,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                  hidden_layer_sizes=(100,),
                  activation=('tanh','softmax'),
                  optimizer='adam',
+                 verbose=True,
                  optimizer_kwargs={},
                  loss='mean_squared_error',
                  metrics=['acc'],
@@ -161,6 +153,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
         self.fit_kwargs = fit_kwargs
         self.callbacks_list = callbacks_list
         self.dir = dir
+        self.verbose = verbose
 
         self.model = None
 
@@ -182,7 +175,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
             filepath_bestmodel = str(os.path.join(self.get_params()['dir'],'best_model.h5'))
 
             if file_exist(filepath_bestmodel):
-                print "model already exists in {0} file".format(filepath_bestmodel)
+                if self.verbose:print("model already exists in {0} file".format(filepath_bestmodel))
                 self.model = load_model(str(filepath_bestmodel))
                 return self
 
@@ -194,7 +187,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
 
             for init in range(self.n_init):
 
-                    print "[+] {0} of {1} inits".format(init+1,self.n_init)
+                    if self.verbose:print("[+] {0} of {1} inits".format(init+1,self.n_init))
                     model = Sequential()
 
                     model.add(Dense(X.shape[1], input_dim=X.shape[1], activation='relu'))
