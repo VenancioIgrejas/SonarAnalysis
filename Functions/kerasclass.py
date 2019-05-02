@@ -184,7 +184,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
 
                       if isinstance(icallback, keras.callbacks.ModelCheckpoint):
                         flag_modelcheckpoint = True
-                        icallback.filepath = str(os.path.join(self.get_params()['dir'],'best_model.{epoch:02d}.h5'))
+                        icallback.filepath = str(os.path.join(self.get_params()['dir'], 'best_model.h5'))
 
 
                     if not self.callbacks_list:
@@ -205,7 +205,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
 
 
             if flag_modelcheckpoint:
-              self.model = load_model(icallback.filename)
+              self.model = load_model(str(os.path.join(self.get_params()['dir'], 'best_model.h5')))
             else:
               self.model = best_model
 
