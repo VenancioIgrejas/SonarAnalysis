@@ -86,10 +86,19 @@ metrics = ['acc','sp']
 #                                                               output_activation=args.output_activation,
 #                                                               hidden_activation=args.hidden_activation,)
 
+str_spec ='_'
+spec_estimators=None
+
+# if False:#database=='31classes':
+#   spec_estimators = ['class_B8']
+#   str_spec ='_'
+#   for spec in spec_estimators:
+#       str_spec = str_spec + spec.split('_')[-1] + '_'
+
 # if args.dev:
-# 	results_path_specific = results_path + '/dev' + '/Spec_{0}_'.format(database) + trparamns.get_params_str()
+#     results_path_specific = results_path + '/dev' + '/Hierarq{0}{1}_'.format(str_spec,database) + trparamns.get_params_str()
 # else:
-# 	results_path_specific = results_path + '/Spec_{0}_'.format(database) + trparamns.get_params_str()
+#     results_path_specific = results_path + '/Hierarq{0}{1}_'.format(str_spec,database) + trparamns.get_params_str()
 
 info_net = {'weight':args.weight,'n_inits':args.init,'n_neurons':args.neurons,
             'optmizerAlgorithm':args.optmizer,'n_folds':args.fold,
@@ -100,8 +109,9 @@ info_net = {'weight':args.weight,'n_inits':args.init,'n_neurons':args.neurons,
             'hidden_activation':args.hidden_activation,
             'PCD':False,
             'database':database,
-            'type_arq':'Especialista',
+            'type_arq':'Hierarquica',
             'analysis_name':analysis_name,
+            'observation':'Super with all classes',
             'dev':args.dev}
 
 bdc = BDControl(main_path=results_path,columns=info_net.keys())
@@ -114,7 +124,6 @@ if not os.path.exists(results_path_specific):
 #save configuration inside of path case something wrong happen
 with open(results_path_specific+'/info_net.json', 'w') as fp:
     json.dump(info_net, fp)
-
 
 from Functions.preprocessing import CrossValidation
 
@@ -132,19 +141,12 @@ train_id, test_id, folder = cv.train_test_split(ifold=args.ifold)
 
 # In[9]:
 
-
-#from sklearn.neural_network import MLPClassifier
-from Functions.preprocessing import CrossValidation,CVEnsemble
-from Functions.ensemble.hierarque_classification import SpecialistClassification
 from Functions.mlpClassification import MLPKeras
-from sklearn.preprocessing import StandardScaler,OneHotEncoder
-from sklearn.model_selection import train_test_split,StratifiedKFold
+from Functions.preprocessing import CrossValidation,CVEnsemble
+from Functions.ensemble import SpecialistClass,HierarqNet,HierarqClassification
+from Functions.ensemble.hierarque_classification import SpecialistClassification
 
-# MLP for Pima Indians Dataset with 10-fold cross validation via sklearn
-from keras import backend as K
-from keras.models import Sequential
-from keras.layers import Dense
-from keras.callbacks import EarlyStopping, ModelCheckpoint, CSVLogger
+import sklearn as sk
 
 mlp = MLPKeras(hidden_layer_sizes=(args.neurons,),
                  activation=(args.hidden_activation,args.output_activation),
@@ -161,8 +163,8 @@ mlp = MLPKeras(hidden_layer_sizes=(args.neurons,),
                  patience=20,
                  save_best_model = True,
                  class_weight = args.weight,
-                 monitor='val_loss',
-                 mode='auto',
+                 monitor='sp',
+                 mode='max',
                  metrics=metrics,
                  validation_id=(None,None),
                  validation_fraction=0.0,
@@ -171,15 +173,130 @@ mlp = MLPKeras(hidden_layer_sizes=(args.neurons,),
 classes_name = ['{0:02d}_specialist'.format(i) for i in range(len(np.unique(all_trgt)))]
 
 #sp = SpecialistClass(mlp,dir=folder,verbose=args.verbose)
-sp = SpecialistClassification(mlp, classes_name,dir=folder,verbose=args.verbose,integrator='wta')
+sp = SpecialistClassification(mlp, classes_name,dir='./',verbose=args.verbose,integrator='wta')
 
+if database=='31classes':
+    n_member = 6
+    classes={'class_S':np.arange(1,32).reshape(31,1).tolist(),
 
-t0 = time.time()
-list_member_paramns=[]
+            'class_A':[[1],
+                       [2],
+                       [3],
+                       [4]],
+
+            'class_B':[[5],
+                       [6],
+                       [7,8,9,10,11],
+                       [12],
+                       [13,14,15],
+                       [16],
+                       [17],
+                       [18,19,20,21,22,23,24,25,26,27,28,29,30,31]],
+             
+            'class_B3':[[7],
+                        [8],
+                        [9],
+                        [10],
+                        [11]],
+
+            'class_B5':[[13],
+                        [14],
+                        [15]],
+            
+            'class_B8':[[18],
+                        [19],
+                        [20],
+                        [21],
+                        [22],
+                        [23],
+                        [24],
+                        [25],
+                        [26],
+                        [27],
+                        [28],
+                        [29],
+                        [30],
+                        [31]],}
+
+    map_lvl = {
+        'class_S':0,
+        'class_A':1,
+        'class_B':1,
+        'class_B3':2,
+        'class_B5':2,
+        'class_B8':2
+    }
+    dict_estimators = dict([(key,mlp) for key in map_lvl.keys()])
+    if not spec_estimators is None:
+      dict_estimators.update(dict([(estimator,sp) for estimator in spec_estimators]))
+
+else:
+    n_member = 9
+    classes={'class_S':np.arange(1,25).reshape(24,1).tolist(),
+            'class_A':[[9,10,13,14,16],
+                            [23,1,2,22],
+                            [21]],
+            'class_B':[[4],
+                            [6],
+                            [8],
+                            [12],
+                            [17],
+                            [19]],
+            'class_D':[[5,7,15],
+                    [3,18,20]],
+             
+            'class_C':[[11],
+                        [24]],
+            'class_AA':[[9],
+                             [10],
+                             [13],
+                             [14],
+                             [16]],
+            'class_AB':[[23],
+                             [1],
+                             [2],
+                             [22]],
+            'class_DA':[[5],
+                             [7],
+                             [15]],
+            'class_DB':[[3],
+                             [18],
+                             [20]]}
+
+    map_lvl = {
+        'class_S':0,
+        'class_A':1,
+        'class_AA':2,
+        'class_AB':2,
+        'class_AC':2,
+        'class_B':1,
+        'class_C':1,
+        'class_D':1,
+        'class_DA':2,
+        'class_DB':2
+    }
+
+    dict_estimators = dict([(key,mlp) for key in map_lvl.keys()])
+    if not spec_estimators is None:
+      dict_estimators.update(dict([(estimator,sp) for estimator in spec_estimators]))
+
+hn = HierarqClassification(estimator=dict_estimators,
+                           dict_classes=classes,
+                           map_members=map_lvl,
+                           n_lvl=3,
+                           dir=folder,
+                           verbose=args.verbose)
+
+# In[10]:
+
+classes_name = classes.keys()
+
 # train
-with timer('fit Specialist each class'):
-  #sp.fit(all_data,all_trgt)
-  for i in range(len(np.unique(all_trgt))):
+t0 = time.time()
+list_member_paramns = []
+with timer('fit Hierarque each class'):
+
+  for i in range(n_member):
     list_member_paramns.append({
       'member':classes_name[i],
       'X':all_data,
@@ -191,17 +308,19 @@ with timer('fit Specialist each class'):
 
   def f_member_train(paramns_fit_member):
     #sp.fit_only_member(member=classes_name[args.member_specialist], X=all_data, y=all_trgt, train_id=train_id, test_id=test_id, ifold=args.ifold)
-    sp.fit_only_member(**paramns_fit_member)
+    hn.fit_only_member(**paramns_fit_member)
   #sp.fit(all_data,all_trgt)
   p = Pool(processes=num_processes)
   p.map(f_member_train,list_member_paramns)
   p.close()
   p.join()
+  #for i in list_member_paramns:
+  #  hn.fit_only_member(**i)
 
-with timer('fit Specialist Class'):
-  sp.fit(X=all_data, y=all_trgt, train_id=train_id, test_id=test_id, ifold=args.ifold)
+with timer('fit Hierarque Class'):
+    hn.fit(X=all_data, y=all_trgt, train_id=train_id, test_id=test_id, ifold=args.ifold)
 
-telegram_send.send(messages=["O seu treinamento Especialista com os seguintes parametros acabou de terminar!\n"+
+telegram_send.send(messages=["O seu treinamento Hierarquico com os seguintes parametros acabou de terminar!\n"+
                              "\nFOLD: "+str(args.ifold)+
                              "\nNEURONS: "+str(args.neurons)+
                              "\nData: "+str(database)+
@@ -210,50 +329,5 @@ telegram_send.send(messages=["O seu treinamento Especialista com os seguintes pa
                              "\nEle levou "+str(datetime.timedelta(seconds=time.time() - t0))+" ao total"])
 
 # In[11]:
-with timer('Predict Specialist Class'):
-    sp.predict(all_data)
-
-
-
-
-
-# fold = -np.ones((all_data.shape[0],), dtype=int)
-
-# fold[train_id] = 0
-# fold[test_id] = 1
-# # In[11]:
-
-# pred_all = sp.predict(all_data)
-
-# output_sparce = sp._output_pred
-# matrix_pred = sp._matrix_pred
-# spec_output_sparce = sp._output_sparse_each_spec
-
-# pred = pred_all[test_id]
-# values = np.array([row[np.argmax(row)] for row in output_sparce])
-
-
-
-# output_value_matrix = np.vstack(spec_output_sparce).T
-# #sys.exit()
-# #tmp = []
-# #for ispec,output_spc in enumerate(spec_output_sparce):
-# #    tmp.append(pd.DataFrame(np.array(map(lambda x:x[np.argmax(x)],output_spc))))
-
-# #output_value_matrix = pd.concat(tmp,axis=1).values
-
-# #generate csv files as analisys
-# from sklearn.metrics import confusion_matrix
-# pd.DataFrame(confusion_matrix(all_trgt[test_id],pred)).to_csv(folder+'confusion_matrix.csv',header=False,index=False)
-# pd.DataFrame({'ClassEspe(resultados)_{0}'.format(args.ifold):pred_all,
-#               'ClassEspe(valor)_{0}'.format(args.ifold):values,
-#               'ClassEspe_WTA(resultados)_{0}'.format(args.ifold):np.argmax(output_value_matrix,axis=1),
-#               'ClassEspe_WTA(valor)_{0}'.format(args.ifold):np.array(map(lambda x:x[np.argmax(x)],output_value_matrix)),
-#               'fold_{0}'.format(args.ifold):fold}).to_csv(folder+'specialist_analy_trainIDWeights_fold_{0}.csv'.format(args.ifold),index=False)
-# pd.DataFrame(dict([('weight_ispec{0:02d}_{1}'.format(ispec,args.ifold),vector_weight) for ispec,vector_weight in sp.weight_integrator.iteritems()])).to_csv(folder+'weights_fold_{0}.csv'.format(args.ifold),index=False)
-# pd.DataFrame(output_sparce).to_csv(folder+'output_sparce.csv',header=False,index=False)
-# pd.DataFrame(matrix_pred).to_csv(folder+'matrix_sparce.csv',header=False,index=False)
-
-K.clear_session()
-
-
+with timer('Predict Hierarque Class'):
+    prediction_for_debug = hn.predict(all_data,choose_pred="mlp_super_all")

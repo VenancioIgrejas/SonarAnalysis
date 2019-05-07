@@ -338,7 +338,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                         st = StopTraining(restore_best_weights=self.es_kwargs['restore_best_weights'],
                                           verbose=self.es_kwargs['verbose'],
                                           patience=self.es_kwargs['patience'],
-                                          min_delta=0)
+                                          min_delta=10^-4)
 
                         callbacks_list.append(st)
 

@@ -26,13 +26,13 @@ class BaseClassifier(object):
 		self.master_table.loc[:,name] = Series(value, index=self.master_table.index)
 		return
 
-	def _add_class(self,name,classes_of,trgt):
+	def _add_class(self, name, classes_of, trgt):
 		#rewrite this function acoording to multiclassifier
 		self.dict_df['target'] = trgt
 		new_trgt = -np.ones(shape=trgt.shape,dtype=int)
 		#----------
 		#write the map trgt here
-		
+
 
 		#----------
 		self.dict_df[name] = new_trgt
@@ -371,13 +371,26 @@ class HierarqClassification(HierarqBase):
 	    
 	    return df
 
+	def _new_map_members(self,df,classes,members):
+		for member in members:
+			df[member+'_old'] = df[member]
+			df[member] = -1
+			for new_class,old_class in enumerate(classes[member]):
+				
+				print old_class , new_class
+
+				for sub_old in old_class:
+					print sub_old
+					df.loc[df[(df[member+'_old']==(sub_old-1))].index,member] = new_class
+
+		return df
 
 
-	def predict(self, X, y=None):
+	def predict(self, X, y=None, choose_pred=None):
 
 		if not self.len_classes in [24,31]:
 			raise ValueError("only 24 or 31 classes, {0} classes is not implemented".format(self.len_classes))
-
+			
 		pred_m = {}
 		pred_m['pred'] = -np.ones(shape=(X.shape[0],),dtype=int)
 		for key in self.dict_classes.keys():
@@ -386,10 +399,31 @@ class HierarqClassification(HierarqBase):
 
 		pred_df = pd.DataFrame(pred_m)
 
-		if self.len_classes is 31:
-			pred_df = self._pred_table_31(pred_df,self.dict_classes)
+		if choose_pred=="mlp_super_all":
+
+			if self.len_classes is 31:
+				dict_map = {'class_S':[[1,2,3,4],
+                        [5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31]]}
+				self.dict_classes.update(dict_map)
+				pred_df = self._new_map_members(pred_df,self.dict_classes,dict_map.keys())
+				pred_df = self._pred_table_31(pred_df,self.dict_classes)
+			else:
+
+				dict_map = {'class_S':[[9,10,13,14,16,23,1,2,22,21],
+                                 [4,6,8,12,17,19],
+                                 [11,24],
+                                 [5,7,15,3,18,20]]}
+				self.dict_classes.update(dict_map)
+				pred_df = self._new_map_members(pred_df,self.dict_classes,dict_map.keys())
+				pred_df = self._pred_table_24(pred_df,self.dict_classes)
+
 		else:
-			pred_df = self._pred_table_24(pred_df,self.dict_classes)
+
+			if self.len_classes is 31:
+				pred_df = self._pred_table_31(pred_df,self.dict_classes)
+			else:
+				pred_df = self._pred_table_24(pred_df,self.dict_classes)
+
 
 		pred_df.to_csv(self.dir + '/pred_all.csv',index=False)
 

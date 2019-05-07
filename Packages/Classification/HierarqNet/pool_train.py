@@ -48,7 +48,7 @@ def f_train(params):
     else:
         batch = 512
     
-    p = subprocess.call(["python", "{0}/train_hierarq_folds.py".format(pwd),
+    p = subprocess.call(["python", "{0}/train_hierarq_mlp_Super.py".format(pwd),
                          "-n",str(n_neurons),
                          "-i","10",
                          "-f","10",

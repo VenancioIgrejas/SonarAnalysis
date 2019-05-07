@@ -19,6 +19,7 @@ import pandas as pd
 from Functions.preprocessing import CrossValidation
 from Functions.dataset.shipClasses import LoadData
 from Functions.dataset.path import BDControl
+from Functions.StatFunctions import sp_index
 
 
 from sklearn import svm
@@ -30,7 +31,6 @@ from sklearn.preprocessing import StandardScaler,LabelEncoder
 from sklearn.metrics import confusion_matrix
 
 from multiprocessing import Pool, TimeoutError
-from lps_toolbox.metrics.classification import sp_index
 
 
 from contextlib import contextmanager
@@ -47,7 +47,7 @@ import argparse
 
 parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
 parser.add_argument("-f", "--fold",default=10,type=int, help= "Select number of folds in Neural Network")
-parser.add_argument("-c", "--penalty", default=1,type=int, help="Select number of neurouns in Neural Network")
+parser.add_argument("-c", "--penalty", default=1,type=float, help="Select number of neurouns in Neural Network")
 parser.add_argument("-k", "--kernel", default='rbf',type=str, help="Select number of neurouns in Neural Network")
 parser.add_argument("-g", "--gamma", default='auto',type=str, help="Select number of neurouns in Neural Network")
 parser.add_argument("-t", "--tol", default=1e-3,type=float, help="Select number of neurouns in Neural Network")
@@ -151,6 +151,11 @@ def train_SVM(ifold):
 
     train_id, test_id, folder = cv.train_test_split(ifold=ifold)
 
+    csv_master = folder+'/master_table.csv'
+    if os.path.exists(csv_master):
+        print("already exist master_table in folder {0}".format(csv_master))
+        print("Closing the traininig")
+        return
 
 
     pipe = Pipeline([
@@ -177,7 +182,6 @@ def train_SVM(ifold):
 
 
     #only for control of Net
-    csv_master = folder+'/master_table.csv'
     if not os.path.exists(csv_master):
         fold_vect = np.zeros(shape=all_trgt.shape,dtype=int)
         fold_vect[test_id] = 1
