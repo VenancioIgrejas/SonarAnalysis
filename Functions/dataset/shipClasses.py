@@ -13,7 +13,7 @@ from sklearn.preprocessing import LabelEncoder
 
 from keras.utils import np_utils
 
-from envConfig import CONFIG
+#from envConfig import CONFIG
 from Functions.util import inverse_dict,pydata
 
 
@@ -23,7 +23,7 @@ class MountData(object):
                  spectrum_bins_left=400,class_label=None):
         #super(MountData, self).__init__()
 
-        self.DATA_PATH = CONFIG['OUTPUTDATAPATH']
+        self.DATA_PATH = os.environ['OUTPUTDATAPATH'] #CONFIG['OUTPUTDATAPATH']
 
         self.database = database
         self.number_of_classes = number_of_classes
@@ -73,13 +73,21 @@ class MountData(object):
             self.class_label = class_label
 
     def to_save(self,path=None,type_file='jbl'):
-        if not type_file in ['jbl']:
-            raise ValueError("only 'jbl' extensions")
+        if not type_file in ['jbl','csv']:
+            raise ValueError("only 'jbl' and 'csv' extensions")    
 
         if path is None:
             file_path = os.path.join(self.DATA_PATH,self.database,self.file_lofar + '.' + type_file)
             print "save the dataset in {0} file".format(file_path)
-            joblib.dump([self.data,self.trgt,self.class_label],file_path,compress=9)
+
+            if type_file=='csv':
+                df_dt = pd.DataFrame(self.data)
+                df_trgt = pd.DataFrame({'target':self.trgt})
+                df_classes = pd.DataFrame({'labels':self.class_label})
+
+                pd.concat([df_dt,df_trgt,df_classes],axis=1).to_csv(file_path,index=False)
+            else:
+                joblib.dump([self.data,self.trgt,self.class_label],file_path,compress=9)
 
         else:
             print "save the dataset in {0} file".format(path + '.' + type_file)
@@ -119,9 +127,10 @@ class LoadData(object):
         self.spectrum_bins_left = spectrum_bins_left
         self.dev_size=dev_size
         self.dev = dev
+        self.datapath_for_load = None
 
 
-        self.DATA_PATH = CONFIG['OUTPUTDATAPATH']
+        self.DATA_PATH = os.environ['OUTPUTDATAPATH'] #CONFIG['OUTPUTDATAPATH']
 
         if data_file is None:
             data_file = "lofar_data_file_fft_%i_decimation_%i_spectrum_left_%i.jbl"%(self.n_pts_fft,
@@ -129,7 +138,7 @@ class LoadData(object):
                                                                                     self.spectrum_bins_left)
 
         data_path = os.path.join(self.DATA_PATH,self.database,data_file)
-
+        print(data_path)
         if not os.path.exists(data_path):
             print 'No Files in %s/%s\n'%(self.DATA_PATH,
                                          self.database)

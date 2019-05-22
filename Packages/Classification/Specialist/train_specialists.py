@@ -5,11 +5,6 @@ import datetime
 import telegram_send
 import json 
 
-sys.path.insert(0,'/home/venancio/Workspace/SonarAnalysis/Packages/Classification')
-
-
-
-
 import argparse
 #Argument Parse config
 
@@ -35,7 +30,6 @@ args = parser.parse_args()
 args.dev=False
 
 
-from classificationConfig import CONFIG
 import numpy as np
 import pandas as pd
 from sklearn.utils import class_weight
@@ -63,8 +57,8 @@ def timer(name):
 
 analysis_name = 'Classification'
 
-data_path = CONFIG['OUTPUTDATAPATH']
-results_path = CONFIG['PACKAGE_NAME']
+data_path = os.environ['OUTPUTDATAPATH']
+results_path = os.environ['PACKAGE_NAME']
 
 dev = args.dev
 
@@ -135,7 +129,7 @@ train_id, test_id, folder = cv.train_test_split(ifold=args.ifold)
 
 #from sklearn.neural_network import MLPClassifier
 from Functions.preprocessing import CrossValidation,CVEnsemble
-from Functions.ensemble.hierarque_classification import SpecialistClassification
+from Functions.ensemble import SpecialistClassification
 from Functions.mlpClassification import MLPKeras
 from sklearn.preprocessing import StandardScaler,OneHotEncoder
 from sklearn.model_selection import train_test_split,StratifiedKFold
@@ -254,6 +248,5 @@ with timer('Predict Specialist Class'):
 # pd.DataFrame(output_sparce).to_csv(folder+'output_sparce.csv',header=False,index=False)
 # pd.DataFrame(matrix_pred).to_csv(folder+'matrix_sparce.csv',header=False,index=False)
 
-K.clear_session()
 
 
