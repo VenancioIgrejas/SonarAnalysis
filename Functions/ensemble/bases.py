@@ -7,6 +7,14 @@ from sklearn.base import clone
 from Functions.util import file_exist
 from pandas import Series
 
+def clone_callback(callback):
+
+	if not callable(getattr(callback, "get_arguments",None)):
+		raise ValueError("{0} dont have 'get_arguments' method".format(callback))
+	klass = callback.__class__
+	return klass(**callback.get_arguments())
+
+
 class BaseClassifier(object):
 	"""docstring for HierarBase"""
 	def __init__(self, estimator, classes_name, dir=None, verbose=False):
@@ -16,6 +24,12 @@ class BaseClassifier(object):
 		self.master_table = None
 		self.estimator = estimator
 		self.verbose = verbose
+
+	def convert_to_1dim(self,target):
+		if target.ndim > 1:
+			#if trgt is in sparce mode
+			target = np.argmax(target,axis=1)
+		return target
 
 	def _add(self,name,value):
 		self.dict_df[name] = value
@@ -38,6 +52,7 @@ class BaseClassifier(object):
 
 	def _add_ifold_df(self, y, train_id, test_id, ifold):
 		if not self._check_col('fold_{0:02d}'.format(ifold)):
+			y = self.convert_to_1dim(y)
 			fold = -np.ones(shape=y.shape,dtype=int)
 			fold[test_id] = 1
 			fold[train_id] = 0
@@ -74,6 +89,11 @@ class BaseClassifier(object):
 		return
 
 	def _mount(self,trgt,load=False):
+
+		
+		#if trgt is in sparce mode
+		trgt = self.convert_to_1dim(trgt)
+
 		#rewrite this function acoording to multiclassifier
 		if load:
 			self._load_df()

@@ -5,6 +5,9 @@ import numpy as np
 import pandas as pd
 from contextlib import contextmanager
 
+from sklearn.utils.class_weight import compute_class_weight
+
+
 @contextmanager
 def timer(name):
     t0 = time.time()
@@ -147,4 +150,12 @@ def percent_of_each_class(X, y):
 
 
     return None
+
+def class_weight_keras(y, class_weight='balanced'):
+        class_weight_value = dict(zip(
+                np.unique(y), compute_class_weight(
+                    class_weight=class_weight, classes=np.unique(y), y=y)))
+
+        return class_weight_value
+
 

@@ -31,13 +31,14 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler,OneHotEncoder,LabelEncoder
 
 from Functions import TrainParameters
-from Functions.callbackKeras import metricsAdd, StopTraining
+from Functions.StatFunctions import sp_index
+from Functions.callbackKeras import metricsAdd, StopTraining, EarlyStoppingKeras
 from Functions.util import check_mount_dict,get_objects,update_paramns,file_exist,best_file
 
 from sklearn.base import BaseEstimator, is_classifier, clone
 from sklearn.base import MetaEstimatorMixin
 
-from lps_toolbox.metrics.classification import sp_index
+#from lps_toolbox.metrics.classification import sp_index
 
 
 
@@ -262,7 +263,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
 
             from keras import Sequential, Model
             from keras.layers import Dense, Activation
-            from keras.callbacks import ModelCheckpoint
+            from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau
             from keras.models import load_model
             from keras.utils import np_utils
             
@@ -340,7 +341,20 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                                           patience=self.es_kwargs['patience'],
                                           min_delta=10^-4)
 
-                        callbacks_list.append(st)
+                        
+                        earl = EarlyStoppingKeras(restore_best_weights=self.es_kwargs['restore_best_weights'],
+                                          verbose=self.es_kwargs['verbose'],
+                                          patience=self.es_kwargs['patience'],
+                                          min_delta=10^-4)
+
+                        
+                        #need to change this part
+                        lrplateau = ReduceLROnPlateau()
+
+
+
+                        callbacks_list.append(earl)
+                        callbacks_list.append(lrplateau)
 
 
                     if self.save_best_model:

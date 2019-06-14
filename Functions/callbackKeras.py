@@ -1,7 +1,7 @@
 import numpy as np
 import warnings
 
-from keras.callbacks import EarlyStopping, Callback
+from keras.callbacks import EarlyStopping, ModelCheckpoint, CSVLogger, ReduceLROnPlateau, Callback
 
 from keras import backend as K
 from keras.utils import to_categorical, get_custom_objects
@@ -29,7 +29,13 @@ class metricsAdd(Callback):
         self.monitor = monitor
         self.verbose = verbose
         self.verbose_train = verbose_train
-        self.monitor_train = []
+        self._monitor_train = []
+
+    def name(self):
+        return 'MetricsAdd'
+
+    def get_arguments(self):
+        return dict(monitor=self.monitor, verbose=self.verbose, verbose_train=self.verbose_train)
     
     def on_epoch_end(self, batch, logs={}):
         
@@ -58,7 +64,7 @@ class metricsAdd(Callback):
         
             logs['sp'] = sp
             
-            self.monitor_train.append(sp)
+            self._monitor_train.append(sp)
         
             monitor_value = logs.get('sp')
             if self.verbose > 0:
@@ -87,6 +93,9 @@ class StopTraining(EarlyStopping):
             self.min_delta_s *= 1
         else:
             self.min_delta_s *= -1
+
+    def name(self):
+        return 'StopTraining'
         
     
     def on_train_begin(self,logs=None):
@@ -148,17 +157,35 @@ class StopTraining(EarlyStopping):
 
 
 class EarlyStoppingKeras(EarlyStopping):
-    def __init__(self, monitor='val_loss',min_delta=0, patience=0, verbose=0, mode='auto', baseline=None, restore_best_weights=False):
-        super(EarlyStoppingKeras,self).__init__(monitor=monitor, min_delta=min_delta, patience=patience, verbose=verbose, mode=mode, baseline=baseline, restore_best_weights=restore_best_weights)        
+    def __init__(self, 
+                monitor='val_loss',
+                min_delta=0, 
+                patience=0, 
+                verbose=0, mode='auto', 
+                baseline=None, restore_best_weights=False):
+        
+        self.mode = mode
+
+        super(EarlyStoppingKeras,self).__init__(monitor=monitor, min_delta=min_delta, patience=patience, verbose=verbose, mode=self.mode, baseline=baseline, restore_best_weights=restore_best_weights)        
     
-    def on_train_begin(self, logs=None):
-        # Allow instances to be re-used
-        self.wait = 0
-        self.stopped_epoch = 0
-        if self.baseline is not None:
-            self.best = self.baseline
-        else:
-            self.best = np.Inf if self.monitor_op == np.less else -np.Inf
+    def name(self):
+        return 'EarlyStoppingKeras'
+
+    def get_arguments(self):
+        return dict(monitor=self.monitor,
+                min_delta=self.min_delta, 
+                patience=self.patience, 
+                verbose=self.verbose, mode=self.mode, 
+                baseline=self.baseline, restore_best_weights=self.restore_best_weights)
+
+    # def on_train_begin(self, logs=None):
+    #     # Allow instances to be re-used
+    #     self.wait = 0
+    #     self.stopped_epoch = 0
+    #     if self.baseline is not None:
+    #         self.best = self.baseline
+    #     else:
+    #         self.best = np.Inf if self.monitor_op == np.less else -np.Inf
 
     def on_epoch_end(self, epoch, logs=None):
 
@@ -185,16 +212,77 @@ class EarlyStoppingKeras(EarlyStopping):
                               'the best epoch')
                     self.model.set_weights(self.best_weights)
 
-    def on_train_end(self, logs=None):
-        if self.stopped_epoch > 0 and self.verbose > 0:
-            print('Epoch %05d: early stopping' % (self.stopped_epoch + 1))
+    # def on_train_end(self, logs=None):
+    #     if self.stopped_epoch > 0 and self.verbose > 0:
+    #         print('Epoch %05d: early stopping' % (self.stopped_epoch + 1))
 
-    def get_monitor_value(self, logs):
-        monitor_value = logs.get(self.monitor)
-        if monitor_value is None:
-            warnings.warn(
-                'Early stopping conditioned on metric `%s` '
-                'which is not available. Available metrics are: %s' %
-                (self.monitor, ','.join(list(logs.keys()))), RuntimeWarning
-            )
-        return monitor_value
+    # def get_monitor_value(self, logs):
+    #     monitor_value = logs.get(self.monitor)
+    #     if monitor_value is None:
+    #         warnings.warn(
+    #             'Early stopping conditioned on metric `%s` '
+    #             'which is not available. Available metrics are: %s' %
+    #             (self.monitor, ','.join(list(logs.keys()))), RuntimeWarning
+    #         )
+    #     return monitor_value
+
+class ModelCheckpointKeras(ModelCheckpoint):
+    def __init__(self, filepath, 
+                 monitor='val_loss', 
+                 verbose=0,
+                 save_best_only=False, 
+                 save_weights_only=False,mode='auto', 
+                 period=1):
+
+        self.mode = mode
+
+        super(ModelCheckpointKeras,self).__init__(filepath=filepath,
+                                                monitor=monitor, 
+                                                verbose=verbose, 
+                                                save_best_only=save_best_only, 
+                                                save_weights_only=save_weights_only,
+                                                mode=self.mode, 
+                                                period=period)
+
+    def name(self):
+        return 'ModelCheckpointKeras'
+
+    def get_arguments(self):
+        return dict(filepath=self.filepath,
+                    monitor=self.monitor, 
+                    verbose=self.verbose, 
+                    save_best_only=self.save_best_only, 
+                    save_weights_only=self.save_weights_only,mode=self.mode, 
+                    period=self.period)
+
+class CSVLoggerKeras(CSVLogger):
+    def __init__(self, filename, separator=',', append=False):
+
+        super(CSVLoggerKeras,self).__init__(filename=filename, separator=separator, append=append)
+    
+    def name(self):
+        return 'CSVLoggerKeras'
+
+    def get_arguments(self):
+        return dict(filename=self.filename, separator=self.sep, append=self.append)
+
+
+class ReduceLROnPlateauKeras(ReduceLROnPlateau):
+    def __init__(self, monitor='val_loss', factor=0.1, patience=10,
+                 verbose=0, mode='auto', min_delta=1e-4, cooldown=0, min_lr=0,**kwargs):
+        
+        self.mode = mode
+
+        super(ReduceLROnPlateauKeras,self).__init__(monitor=monitor, factor=factor, 
+                                                    patience=patience, verbose=verbose, 
+                                                    mode=self.mode, min_delta=min_delta, 
+                                                    cooldown=cooldown, min_lr=min_lr, **kwargs)
+
+    def name(self):
+        return 'ReduceLROnPlateauKeras'
+
+    def get_arguments(self):
+        return dict(monitor=self.monitor, factor=self.factor, 
+                    patience=self.patience, verbose=self.verbose, 
+                    mode=self.mode, min_delta=self.min_delta, 
+                    cooldown=self.cooldown, min_lr=self.min_lr)

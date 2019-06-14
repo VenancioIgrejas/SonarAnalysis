@@ -22,6 +22,8 @@ parser.add_argument("-d","--database",default='24classes',type=str,help= "specif
 
 args = parser.parse_args()
 
+
+
 n_folds = args.fold
 
 if args.processes == -1:
@@ -48,12 +50,12 @@ def f_train(params):
     
     p = subprocess.call(["python", "{0}/train_specialists.py".format(pwd),
                          "-n",str(n_neurons),
-                         "-i","10",
+                         "-i","3",
                          "-f","10",
                          "-p",str(process),
                          "-b",str(batch),
                          "--database",str(database),
-                         "--dev",str(False),
+                         "--dev",str(0),
                          "--ifold",str(ifold)])
                          #"--output-activation","sigmoid","--hidden-activation",
                          #"relu","--loss","binary_crossentropy"])

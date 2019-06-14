@@ -121,7 +121,7 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
                  compile_kwargs={},
                  n_init=1,
                  fit_kwargs={},
-                 validation_id=None,
+                 validation_id=(None,None),
                  callbacks_list=[],
                  dir='./'):
 
@@ -147,9 +147,23 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
     def load_train(self):
         return pd.read_csv(os.path.join(self.get_params()['dir'], 'log_train.csv'))
 
+    def set_sparce(self, y):
+
+        print 'sparce',y
+
+        if self.activation[-1] == 'tanh':
+            y = 2 * np_utils.to_categorical(y) - 1
+        else:
+            y = np_utils.to_categorical(y)
+
+        return y
+
     def fit(self, X, y, sample_weight=None):
 
         filepath_bestmodel = str(os.path.join(self.get_params()['dir'], 'best_model.h5'))
+
+        #sparce y
+        y = self.set_sparce(y)
 
         if file_exist(filepath_bestmodel):
             print("model already exists in {0} file".format(filepath_bestmodel))
@@ -190,12 +204,14 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
             if not self.callbacks_list:
                 self.callbacks_list = None
 
-            if self.validation_id != None:
+
+            if type(self.validation_id[0]) != None:
                 train_id, test_id = self.validation_id
                 self.fit_kwargs.update({'x': X[train_id], 'y': y[train_id], 'callbacks': self.callbacks_list,
                                         'validation_data': (X[test_id], y[test_id])})
             else:
                 self.fit_kwargs.update({'x': X, 'y': y, 'callbacks': self.callbacks_list})
+
 
             init_trn_desc = model.fit(**self.fit_kwargs)
 
@@ -207,6 +223,9 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
         if flag_csvlogger:
             copyfile(os.path.join(self.get_params()['dir'], 'log_train_init_{0}.csv'.format(best_init)),
                      os.path.join(self.get_params()['dir'], 'log_best_from_{0}.csv'.format(best_init)))
+            
+            copyfile(os.path.join(self.get_params()['dir'], 'log_best_from_{0}.csv'.format(best_init)),
+                     os.path.join(self.get_params()['dir'], 'log_train.csv'))
 
         if flag_modelcheckpoint:
             self.model = load_model(str(os.path.join(self.get_params()['dir'], 'best_model.h5')))
@@ -215,5 +234,5 @@ class MLPKeras(BaseEstimator, ClassifierMixin):
 
         return self
 
-    def predict(self, x):
+    def predict(self, x, predict='sparce'):
         return self.model.predict(x)

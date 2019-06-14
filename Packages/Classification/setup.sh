@@ -23,6 +23,12 @@ export MY_PATH=$PWD
 
 export PACKAGE_NAME=$OUTPUTDATAPATH/Classification
 
+export CLASSIFICATION_RESULTS=$SONAR_WORKSPACE/Results/Classification
+
+export CLASSIFICATION_FIGURES=$CLASSIFICATION_RESULTS/Figures
+
+export SPECIALIST_PATH=$SONAR_WORKSPACE/Packages/Classification/Specialist
+
 # Folder Configuration
 if [ -d "$OUTPUTDATAPATH/Classification" ]; then
     read -e -p "Folder $OUTPUTDATAPATH/Classification exist, Do you want to erase it? [Y,n] " yn_erase

@@ -138,7 +138,6 @@ class LoadData(object):
                                                                                     self.spectrum_bins_left)
 
         data_path = os.path.join(self.DATA_PATH,self.database,data_file)
-        print(data_path)
         if not os.path.exists(data_path):
             print 'No Files in %s/%s\n'%(self.DATA_PATH,
                                          self.database)
